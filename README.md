@@ -17,11 +17,11 @@ pip install -r requirements.txt
 
 ## Results
 
-![image-20210824013917830](/Users/xuanhe/Library/Application Support/typora-user-images/image-20210824013917830.png)
+![train](/Users/xuanhe/Documents/our-paper/workload-performance/code.log/workload-performance/photo/train.png)
 
 
 
-![image-20210824013924031](/Users/xuanhe/Library/Application Support/typora-user-images/image-20210824013924031.png)
+![test](/Users/xuanhe/Documents/our-paper/workload-performance/code.log/workload-performance/photo/test.png)
 
 ## Cite
 
