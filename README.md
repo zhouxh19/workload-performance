@@ -5,17 +5,17 @@ We propose a performance prediction system for concurrent queries using a graph 
 
 ## Before you run
 
-Install dependencies.
+1. Install dependencies.
 
 ```
 pip install -r requirements.txt
 ```
 
+2. Download the dataset (pmodel_data.zip), and put the unzip directory to the current main path (./pmodel_data)
+
 ## Usage
 
-1. Unzip pmodel_data.zip
-
-2. Open up performance-graphembedding-checkpoint.ipynb, and reproduce by following the steps
+Open up performance-graphembedding-checkpoint.ipynb, and reproduce by following the steps
 
 **Note**: You can jump over the workload and graph generation procedures (which need to connect to your own database), and direct run the prediction part with the prepared data (in ./pmodel_data).
 
