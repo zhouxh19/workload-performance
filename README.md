@@ -11,7 +11,7 @@ We propose a performance prediction system for concurrent queries using a graph 
 pip install -r requirements.txt
 ```
 
-2. Download the dataset (pmodel_data.zip), and put the unzip directory to the current main path (./pmodel_data)
+2. Download the dataset from https://cloud.tsinghua.edu.cn/f/b6f4e92ba387445cb825/  (pmodel_data.zip), and put the unzip directory to the current main path (./pmodel_data)
 
 ## Usage
 
