@@ -298,7 +298,8 @@ def add_across_plan_relations(conflict_operators, knobs, ematrix):
     for knob in knobs:
         data_weight *= knob
     # print(conflict_operators)
-    
+
+    data_matrix = ematrix
     # add relations [rw/ww, rr, config]
     for table in conflict_operators:
         for i in range(len(conflict_operators[table])):
@@ -309,16 +310,17 @@ def add_across_plan_relations(conflict_operators, knobs, ematrix):
                 
                 time_overlap = overlap(node_i, node_j)
                 if time_overlap:
-                    ematrix = ematrix + [[node_i[0], node_j[0], -data_weight * time_overlap]]
-                    ematrix = ematrix + [[node_j[0], node_i[0], -data_weight * time_overlap]]
-
+                    data_matrix.append([node_i[0], node_j[0], -data_weight * time_overlap])
+                    data_matrix.append([node_j[0], node_i[0], -data_weight * time_overlap])
                 '''
                 if overlap(i, j) and ("rw" or "ww"):
                     ematrix = ematrix + [[conflict_operators[table][i], conflict_operators[table][j], data_weight * time_overlap]]
                     ematrix = ematrix + [[conflict_operators[table][j], conflict_operators[table][i], data_weight * time_overlap]]
                 '''
-                    
-    return ematrix
+
+    # print(data_matrix[:-1])
+
+    return data_matrix
 
 import merge
 
@@ -334,7 +336,7 @@ def generate_graph(wid, path = data_path):
     conflict_operators = {}
 
     oid = 0
-    with open(path + "sample-plan-" + str(wid) + ".txt", "r") as f:        
+    with open(path + "sample-plan-" + str(wid) + ".txt", "r") as f:
         
         # vertex: operators
         # edge: child-parent relations
@@ -349,17 +351,16 @@ def generate_graph(wid, path = data_path):
             vmatrix = vmatrix + node_matrix
             ematrix = ematrix + edge_matrix
 
-
-# ZXN TEMP Modified BEGIN
+        # ZXN TEMP Modified BEGIN
         # Step 2: read related knobs
         db = Database("mysql")
         knobs = db.fetch_knob()
-            
+
         # Step 3: add relations across queries
-        ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
-        
+        ematrix2 = add_across_plan_relations(conflict_operators, knobs, ematrix)
+        # print(ematrix2)
         # edge: data relations based on (access tables, related knob values)
-        vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
+        vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix2, vmatrix)
 ### ZXN TEMP Modified ENDED
     return vmatrix, ematrix, mergematrix
 
@@ -378,8 +379,8 @@ for wid in range(num_graphs):
     st = time.time()
 
     vmatrix, ematrix, mergematrix = generate_graph(wid)
-    print(ematrix)
-    vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
+    # print(ematrix)
+    # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
     print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
 
 ### ZXN TEMP Modified BEGIN
