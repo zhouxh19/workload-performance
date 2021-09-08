@@ -146,9 +146,8 @@ def mergegraph_main(mergematrix, ematrix, vmatrix):
 #        print("node:",oid)
 #        l, r, cost = map(int, f.readline().split())
         node_list.append(Node(value, l, r, run_cost,others, oid))
-    # print(ematrix)
     for i in range(m):
-        x, y = ematrix[i][0] , ematrix[i][1]
+        x, y = ematrix[i][0], ematrix[i][1]
         hash_map[(x, y)] = ematrix[i][2]
         hash_map[(y, x)] = ematrix[i][2]
         # print(x, y)
@@ -164,7 +163,7 @@ def mergegraph_main(mergematrix, ematrix, vmatrix):
     return new_node_all, ematrix_arrays
 
 
-'''
+
 if __name__ == '__main__':
     with open("n=500.txt", "r") as f:
         n, m = map(int, f.readline().split())
@@ -184,4 +183,3 @@ if __name__ == '__main__':
             print("new_graph:",keys[0], keys[1])
         for node in node_list:
             print("!",node.cost)
-'''

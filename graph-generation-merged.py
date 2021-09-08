@@ -20,6 +20,10 @@ import glob
 
 
 # # 1. Generate Workload Dataset
+
+# In[2]:
+
+
 cur_path = os.path.abspath('.')
 data_path = cur_path + '/pmodel_data/job/'
 
@@ -49,6 +53,9 @@ argus = { "mysql": {
             "user": "postgres"}}
 argus["postgresql"]["host"]
 '''
+
+
+# In[3]:
 
 
 # obtain and normalize configuration knobs
@@ -169,6 +176,11 @@ class Database:
 
 # db = Database("mysql")
 # print(db.fetch_knob())
+
+
+# In[4]:
+
+
 # actual runtime:  actuall executed (training data) / estimated by our model
 # operators in the same plan can have data conflicts (parallel)
 
@@ -327,6 +339,7 @@ def generate_graph(wid, path = data_path):
         # vertex: operators
         # edge: child-parent relations
         for sample in f.readlines():
+            
             sample = json.loads(sample)
             
             # Step 1: read (operators, parent-child edges) in separate plans
@@ -336,6 +349,8 @@ def generate_graph(wid, path = data_path):
             vmatrix = vmatrix + node_matrix
             ematrix = ematrix + edge_matrix
 
+
+# ZXN TEMP Modified BEGIN
         # Step 2: read related knobs
         db = Database("mysql")
         knobs = db.fetch_knob()
@@ -345,8 +360,11 @@ def generate_graph(wid, path = data_path):
         
         # edge: data relations based on (access tables, related knob values)
         vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
-
+### ZXN TEMP Modified ENDED
     return vmatrix, ematrix, mergematrix
+
+
+# In[5]:
 
 
 # '''
@@ -361,13 +379,8 @@ for wid in range(num_graphs):
 
     vmatrix, ematrix, mergematrix = generate_graph(wid)
     print(ematrix)
-
     vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
-    print(ematrix)
     print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
-
-end_time = time.time()
-print("Total Time:{}".format(end_time - start_time))
 
 ### ZXN TEMP Modified BEGIN
     #with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
@@ -377,3 +390,8 @@ print("Total Time:{}".format(end_time - start_time))
     #    for e in ematrix:
     #        wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
 ### ZXN TEMP Modified ENDED
+
+end_time = time.time()
+
+print("Total Time:{}".format(end_time - start_time))
+# '''
