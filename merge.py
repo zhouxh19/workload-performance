@@ -134,7 +134,7 @@ def Graph_merge(n:int, hash_map:dict, node_list:list):
         ematrix_arrays.append(ematrix_temp)
     '''
     # Strategy 2. With Sorted Only.
-#    '''
+    '''
     ematrix_arrays = []
     for keys in new_dict:
         new_dict[keys][:] = sorted(new_dict[keys],reverse=True)
@@ -146,9 +146,45 @@ def Graph_merge(n:int, hash_map:dict, node_list:list):
             element = new_dict[keys][i]
             ematrix_temp.append([keys[0], keys[1], element])
         ematrix_arrays.append(ematrix_temp)
- #   '''
+    '''
     # Strategy 3. With Sorted & Ones divided(unfinished).
-
+    # '''
+    ematrix_arrays = []
+    left_element_counts = {}
+    for keys in new_dict:
+        new_dict[keys][:] = sorted(new_dict[keys],reverse=True)
+        left_element_counts[keys] = len(new_dict[keys]) 
+    elements_in_ematrix = True
+    while elements_in_ematrix:
+        ematrix_temp = []
+        max_val = -1
+        elements_in_ematrix = False
+        for keys in new_dict:
+            if left_element_counts[keys] == 0:
+                continue
+            element = new_dict[keys][len(new_dict[keys]) - left_element_counts[keys]]
+            max_val = max(max_val, element)
+            elements_in_ematrix = True
+        if max_val > 0:
+            for keys in new_dict:
+                if left_element_counts[keys] == 0:
+                    continue
+                element = new_dict[keys][len(new_dict[keys]) - left_element_counts[keys]]
+                if element <= 0:
+                    continue
+                else:
+                    ematrix_temp.append([keys[0], keys[1], element])
+                    left_element_counts[keys] -= 1
+        else:
+            for keys in new_dict:
+                if left_element_counts[keys] == 0:
+                    continue
+                element = new_dict[keys][len(new_dict[keys]) - left_element_counts[keys]]
+                ematrix_temp.append([keys[0], keys[1], element])
+                left_element_counts[keys] -= 1
+        if elements_in_ematrix == True:
+            ematrix_arrays.append(ematrix_temp)
+    # '''
     # ematrix_arrays format:
     # [ [[a,b,c],[a,b,c],...,[a,b,c]],[[a,b,c],[a,b,c],...], ...]
     return copy.deepcopy(ematrix_arrays), copy.deepcopy(cost)
