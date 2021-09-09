@@ -119,6 +119,10 @@ def Graph_merge(n:int, hash_map:dict, node_list:list):
             new_dict[(a, b)].append(a_b_value)
             new_dict[(b, a)].append(a_b_value)
             max_len = max(len(new_dict[(a, b)]),max_len)
+
+    ## Divide Ematrix into arrays.
+    # Strategy 1. With the order of appending.
+    '''
     ematrix_arrays = []
     for i in range(max_len):
         ematrix_temp = []
@@ -128,6 +132,22 @@ def Graph_merge(n:int, hash_map:dict, node_list:list):
             element = new_dict[keys][i]
             ematrix_temp.append([keys[0],keys[1],element])
         ematrix_arrays.append(ematrix_temp)
+    '''
+    # Strategy 2. With Sorted Only.
+#    '''
+    ematrix_arrays = []
+    for keys in new_dict:
+        new_dict[keys][:] = sorted(new_dict[keys],reverse=True)
+    for i in range(max_len):
+        ematrix_temp = []
+        for keys in new_dict:
+            if len(new_dict[keys]) <= i:
+                continue
+            element = new_dict[keys][i]
+            ematrix_temp.append([keys[0], keys[1], element])
+        ematrix_arrays.append(ematrix_temp)
+ #   '''
+    # Strategy 3. With Sorted & Ones divided(unfinished).
 
     # ematrix_arrays format:
     # [ [[a,b,c],[a,b,c],...,[a,b,c]],[[a,b,c],[a,b,c],...], ...]
