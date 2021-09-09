@@ -147,7 +147,7 @@ def mergegraph_main(mergematrix, ematrix, vmatrix):
 #        l, r, cost = map(int, f.readline().split())
         node_list.append(Node(value, l, r, run_cost,others, oid))
     for i in range(m):
-        x, y = ematrix[i][0] , ematrix[i][1]
+        x, y = ematrix[i][0], ematrix[i][1]
         hash_map[(x, y)] = ematrix[i][2]
         hash_map[(y, x)] = ematrix[i][2]
         # print(x, y)

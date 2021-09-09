@@ -15,9 +15,12 @@ pip install -r requirements.txt
 
 ## Usage
 
-Open up performance-graphembedding-checkpoint.ipynb, and reproduce by following the steps
+1. Open up performance-graphembedding-checkpoint.ipynb, and reproduce by following the steps
 
-**Note**: You can jump over the workload and graph generation procedures (which need to connect to your own database), and direct run the prediction part with the prepared data (in ./pmodel_data).
+**Note**: You can jump over the workload and graph generation procedures (which need to connect to your own database), and direct run the ``Graph Embedding Algorithm'' part with the prepared data (in ./pmodel_data).
+
+2. Compact large graph using ``graph-generation-merged.py''
+
 
 ## Cite
 
