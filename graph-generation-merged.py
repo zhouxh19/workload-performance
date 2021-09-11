@@ -351,7 +351,7 @@ def generate_graph(wid, path = data_path):
             vmatrix = vmatrix + node_matrix
             ematrix = ematrix + edge_matrix
 
-        # ZXN TEMP Modified BEGIN
+    # ZXN TEMP Modified BEGIN
         # Step 2: read related knobs
         db = Database("mysql")
         knobs = db.fetch_knob()
@@ -361,36 +361,35 @@ def generate_graph(wid, path = data_path):
         # print(ematrix2)
         # edge: data relations based on (access tables, related knob values)
         vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix2, vmatrix)
-### ZXN TEMP Modified ENDED
+    # ZXN TEMP Modified ENDED
     return vmatrix, ematrix, mergematrix
 
 
-# In[5]:
+
 
 
 # '''
-# Step-0: split the workloads into multiple concurrent queries at different time ("sample-plan-x")
+# Split the workloads into multiple concurrent queries at different time ("sample-plan-x")
 
 workloads = glob.glob("./pmodel_data/job/sample-plan-*")
-
 start_time = time.time()
 num_graphs = 10
+
+# convert into (vmatrix, ematrix)
 for wid in range(num_graphs):
     st = time.time()
-
     vmatrix, ematrix, mergematrix = generate_graph(wid)
     # print(ematrix)
     # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
     print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
 
-### ZXN TEMP Modified BEGIN
-    #with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
-    #    for v in vmatrix:
-    #        wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\n")
-    #with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".cites", "w") as wf:
-    #    for e in ematrix:
-    #        wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
-### ZXN TEMP Modified ENDED
+# rewrite into files
+with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
+   for v in vmatrix:
+       wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\n")
+with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".cites", "w") as wf:
+   for e in ematrix:
+       wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
 
 end_time = time.time()
 
