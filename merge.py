@@ -207,6 +207,7 @@ def mergegraph_main(mergematrix, ematrix, vmatrix):
         hash_map[(x, y)] = ematrix[i][2]
         hash_map[(y, x)] = ematrix[i][2]
         # print(x, y)
+
     ematrix_arrays, new_node_all = Graph_merge(n, hash_map, node_list)
     # ematrix = []
     # vmatrix = []

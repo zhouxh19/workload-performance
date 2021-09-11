@@ -372,24 +372,28 @@ def generate_graph(wid, path = data_path):
 # Split the workloads into multiple concurrent queries at different time ("sample-plan-x")
 
 workloads = glob.glob("./pmodel_data/job/sample-plan-*")
+num_graphs = len(workloads) # change
 start_time = time.time()
-num_graphs = 10
 
 # convert into (vmatrix, ematrix)
 for wid in range(num_graphs):
     st = time.time()
     vmatrix, ematrix, mergematrix = generate_graph(wid)
-    # print(ematrix)
-    # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
+    ''' 
+    Note: ematrix (after merge) is an array of edge matrices. 
+    In each edge matrix, there are at most one edge between two vertices. 
+    And we use the embeddings of all the edge matrices to predict the performance. 
+    '''
     print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
 
-# rewrite into files
-with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
-   for v in vmatrix:
-       wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\n")
-with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".cites", "w") as wf:
-   for e in ematrix:
-       wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
+    # write into files
+    with open(data_path + "merged-graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
+       for v in mergematrix:
+           wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\t" + str(v[5]) + "\t" + str(v[6]) + "\n")
+    for i, edgematrix in enumerate(ematrix):
+        with open(data_path + "merged-graph/" + "sample-plan-" + str(wid) + "-" + str(i) + ".cites", "w") as wf:
+           for e in edgematrix:
+               wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
 
 end_time = time.time()
 
