@@ -27,8 +27,8 @@ import glob
 cur_path = os.path.abspath('.')
 data_path = cur_path + '/pmodel_data/job/'
 
-edge_dim = 25000 # upper bound of edges
-node_dim = 300 # upper bound of nodes
+edge_dim = 100000 # upper bound of edges
+node_dim = 1000 # upper bound of nodes
 
 '''
 class DataType(IntEnum):
@@ -39,6 +39,7 @@ class DataType(IntEnum):
 mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5, 'Update': 6} # operator types in the queries
 
 oid = 0 # operator number
+min_timestamp = -1 # minimum timestamp of a graph
 
 '''
 argus = { "mysql": {
@@ -185,7 +186,7 @@ class Database:
 # operators in the same plan can have data conflicts (parallel)
 
 def compute_cost(node):
-    return float(node["Total Cost"]) - float(node["Startup Cost"]) 
+    return (float(node["Total Cost"]) - float(node["Startup Cost"])) / 1e6
 
 def compute_time(node):
     # return float(node["Actual Total Time"]) - float(node["Actual Startup Time"]) 
@@ -210,7 +211,12 @@ def get_used_tables(node):
 
 
 def extract_plan(sample, conflict_operators):
-    global mp_optype, oid
+    global mp_optype, oid, min_timestamp
+    if min_timestamp < 0:
+        min_timestamp = float(sample["start_time"])
+        start_time = 0
+    else:
+        start_time = float(sample["start_time"]) - min_timestamp
     # function: extract SQL feature
     # return: start_time, node feature, edge feature
     
@@ -251,7 +257,7 @@ def extract_plan(sample, conflict_operators):
         tables = get_used_tables(parent)
         # print("[tables]", tables)
         
-        operator_info = [parent["oid"], parent["Startup Cost"], parent["Total Cost"]]
+        operator_info = [parent["oid"], start_time + parent["Startup Cost"] / 1e6, start_time + parent["Total Cost"] / 1e6]
         
         for table in tables:
             if table not in conflict_operators:
@@ -260,11 +266,11 @@ def extract_plan(sample, conflict_operators):
                 conflict_operators[table].append(operator_info)
         
                 
-        node_feature = [parent["oid"], mp_optype[parent["Node Type"]], run_cost, float(parent["Actual Startup Time"]), run_time]
+        node_feature = [parent["oid"], mp_optype[parent["Node Type"]], run_cost, start_time + float(parent["Actual Startup Time"]), run_time]
         
         node_matrix = [node_feature] + node_matrix
 
-        node_merge_feature = [parent["oid"], parent["Startup Cost"], parent["Total Cost"], mp_optype[parent["Node Type"]], run_cost, float(parent["Actual Startup Time"]), run_time]
+        node_merge_feature = [parent["oid"], start_time + parent["Startup Cost"] / 1e6, start_time + parent["Total Cost"] / 1e6, mp_optype[parent["Node Type"]], run_cost, start_time + float(parent["Actual Startup Time"]), run_time]
         node_merge_matrix = [node_merge_feature]  + node_merge_matrix
         # [id?, l, r, ....]
         
@@ -276,7 +282,7 @@ def extract_plan(sample, conflict_operators):
     # node: 18 * featuers
     # edge: 18 * 18
 
-    return float(sample["start_time"]), node_matrix, edge_matrix, conflict_operators, node_merge_matrix
+    return start_time, node_matrix, edge_matrix, conflict_operators, node_merge_matrix
 
 
 def overlap(node_i, node_j):
@@ -294,6 +300,7 @@ def overlap(node_i, node_j):
 
 def add_across_plan_relations(conflict_operators, knobs, ematrix):
     
+    # TODO better implementation
     data_weight = 0.1
     for knob in knobs:
         data_weight *= knob
@@ -323,7 +330,7 @@ def add_across_plan_relations(conflict_operators, knobs, ematrix):
 import merge
 
 def generate_graph(wid, path = data_path):
-    global oid
+    global oid, min_timestamp
     # fuction
     # return
     # todo: timestamp
@@ -334,6 +341,7 @@ def generate_graph(wid, path = data_path):
     conflict_operators = {}
 
     oid = 0
+    min_timestamp = -1
     with open(path + "sample-plan-" + str(wid) + ".txt", "r") as f:        
         
         # vertex: operators
@@ -359,15 +367,14 @@ def generate_graph(wid, path = data_path):
         ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
         
         # edge: data relations based on (access tables, related knob values)
-        vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
+        # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
 ### ZXN TEMP Modified ENDED
     return vmatrix, ematrix, mergematrix
 
 
 # In[5]:
 
-
-# '''
+'''
 # Step-0: split the workloads into multiple concurrent queries at different time ("sample-plan-x")
 
 workloads = glob.glob("./pmodel_data/job/sample-plan-*")
@@ -382,19 +389,18 @@ for wid in range(num_graphs):
     print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
 
 ### ZXN TEMP Modified BEGIN
-    #with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
-    #    for v in vmatrix:
-    #        wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\n")
-    #with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".cites", "w") as wf:
-    #    for e in ematrix:
-    #        wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
+    with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
+       for v in vmatrix:
+           wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\n")
+    with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".cites", "w") as wf:
+       for e in ematrix:
+           wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
 ### ZXN TEMP Modified ENDED
 
 end_time = time.time()
 
 print("Total Time:{}".format(end_time - start_time))
-# '''
-
+'''
 
 # In[6]:
 
@@ -463,24 +469,34 @@ def load_data(dataset, path=data_path):
     
     print('Loading {} dataset...'.format(dataset))
     
-    idx_features_labels = np.genfromtxt("{}{}.content".format(path, dataset),
+    vmatrix = np.genfromtxt("{}{}.content".format(path, dataset),
                                         dtype=np.dtype(str))
+    
+    ematrix = np.genfromtxt("{}{}.cites".format(path, dataset),
+                                    dtype=np.float32)
+    
+    return load_data_from_matrix(vmatrix, ematrix)
+
+# adj, features, labels, idx_train, idx_val, idx_test = 
+# load_data(path = r"C:\Users\Filene\Downloads\workload-performance-main\workload-performance-main\pmodel_data\job\graph\sample-plan-", dataset = "0")
+import random
+
+def load_data_from_matrix(vmatrix, ematrix):
+    idx_features_labels = vmatrix
     
     # encode vertices
     features = sp.csr_matrix(idx_features_labels[:, 1:-1], dtype=np.float32)
     
     # encode labels
     # labels = encode_onehot(idx_features_labels[:, -2])
-    labels = idx_features_labels[:, -1]
-    labels = labels.astype(float)
+    labels = idx_features_labels[:, -1].astype(float)
     
     # encode edges
     idx = np.array(idx_features_labels[:, 0], dtype=np.int32)
 
     
     idx_map = {j: i for i, j in enumerate(idx)}
-    edges_unordered = np.genfromtxt("{}{}.cites".format(path, dataset),
-                                    dtype=np.float32)[:, :-1]
+    edges_unordered = ematrix[:, :-1]
 
     # print(list(map(idx_map.get, edges_unordered.flatten())))
     # print(edges_unordered.flatten())
@@ -491,8 +507,7 @@ def load_data(dataset, path=data_path):
     # edges (weights are computed in gcn)
     
     # modified begin.
-    edges_value = np.genfromtxt("{}{}.cites".format(path, dataset),
-                                    dtype=np.float32)[:, -1:]
+    edges_value = ematrix[:, -1:]
     # modified end.
     
     # adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),shape=(node_dim, node_dim),dtype=np.float32)
@@ -522,8 +537,8 @@ def load_data(dataset, path=data_path):
     idx_test = torch.LongTensor(idx_test)
     
     # padding to the same size
-    print(features.shape)
-    print(node_dim - features.shape[0])
+    # print(features.shape)
+    # print(node_dim - features.shape[0])
     dim=(0, 0, 0,  node_dim - features.shape[0])
     features=F.pad(features, dim, "constant", value=0)
 
@@ -532,16 +547,10 @@ def load_data(dataset, path=data_path):
     # print(labels[idx_train].dtype)
     labels.unsqueeze(1)
     labels = labels * 10
-    labels=F.pad(labels, [0, node_dim - labels.shape[0]], "constant", value=0)    
-    # transfer labels to ms.
-    labels = labels * 1000
-    print("load data:",labels)
+    labels=F.pad(labels, [0, node_dim - labels.shape[0]], "constant", value=0) 
     
     # print("features", features.shape)
     return adj, features, labels, idx_train, idx_val, idx_test
-
-# adj, features, labels, idx_train, idx_val, idx_test = 
-# load_data(path = r"C:\Users\Filene\Downloads\workload-performance-main\workload-performance-main\pmodel_data\job\graph\sample-plan-", dataset = "0")
 
 
 # In[10]:
@@ -565,7 +574,7 @@ print(X.shape[0])
 
 class arguments():
     def __init__(self):
-        self.cuda = False
+        self.cuda = True
         self.fastmode = False
         self.seed = 42
         self.epochs = 200
@@ -638,13 +647,17 @@ class GCN(nn.Module):
         
         self.gc1 = GraphConvolution(nfeat, nhid)
         self.gc2 = GraphConvolution(nhid, nclass)
-        self.fc=nn.Linear(nclass,1)
+        self.fc = nn.Linear(nclass, 1)
         self.dropout = dropout
 
-    def forward(self, x, adj):
+    def forward(self, x, adj, dh=None, embed=False):
         x = F.relu(self.gc1(x, adj))
         x = F.dropout(x, self.dropout, training=self.training)
-        x = self.gc2(x, adj)
+        x = F.relu(self.gc2(x, adj))
+        if embed:
+            return x
+        if dh is not None:
+            x = x + dh
         x = self.fc(x)
         
 #        return F.log_softmax(x, dim=1)
@@ -754,9 +767,110 @@ for wid in range(iteration_num, num_graphs):
     print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
 
 
-# In[ ]:
+# In[16]:
 
+# assume graph_num >> come_num
+graph_num = 4
+come_num = 1
 
+# train model on a big graph composed of graph_num samples
+min_timestamp = -1
+vmatrix = []
+ematrix = [] 
+conflict_operators = {}
+
+for wid in range(graph_num):
+    
+    with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:    
+
+        for sample in f.readlines():
+            sample = json.loads(sample)
+            
+            start_time, node_matrix, edge_matrix, conflict_operators, _ = extract_plan(sample, conflict_operators)
+            
+            vmatrix = vmatrix + node_matrix
+            ematrix = ematrix + edge_matrix
+
+db = Database("mysql")
+knobs = db.fetch_knob()               
+ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
+
+# TODO more features, more complicated model
+model = GCN(nfeat=feature_num,
+            nhid=args.hidden,
+            nclass=node_dim, 
+            dropout=args.dropout)    
+
+optimizer = optim.Adam(model.parameters(),
+                       lr=args.lr, weight_decay=args.weight_decay)
+
+adj, features, labels, idx_train, idx_val, idx_test = load_data_from_matrix(np.array(vmatrix, dtype=np.float32), np.array(ematrix, dtype=np.float32))
+
+ok_times = 0
+for epoch in range(args.epochs):
+    # print(features.shape, adj.shape)
+    loss_train = train(epoch, labels, features, adj, idx_train)
+    if loss_train < 0.002:
+        ok_times += 1
+    if ok_times >= 20:
+        break 
+
+test(labels, idx_test)
+
+def predict(labels, features, adj, dh):
+    model.eval()
+    output = model(features, adj, dh)
+    loss_test = F.mse_loss(output, labels)
+    acc_test = accuracy(output, labels)
+    print("Test set results:",
+          "loss= {:.4f}".format(loss_test.item()))
+
+import bisect
+
+# new queries( come_num samples ) come
+k = 20
+new_e = []
+conflict_operators = {}
+phi = []
+for wid in range(graph_num, graph_num + come_num):
+
+    with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:        
+        
+        # new query come
+        for sample in f.readlines():
+
+            # updategraph-add
+            sample = json.loads(sample)
+            
+            start_time, node_matrix, edge_matrix, conflict_operators, _ = extract_plan(sample, conflict_operators)
+            
+            vmatrix = vmatrix + node_matrix
+            new_e = new_e + edge_matrix
+
+            knobs = db.fetch_knob()
+                
+            new_e = add_across_plan_relations(conflict_operators, knobs, new_e)
+
+            # incremental prediction
+            dadj, dfeatures, dlabels, _, _, _ = load_data_from_matrix(np.array(vmatrix, dtype=np.float32), np.array(new_e, dtype=np.float32))
+
+            model.eval()
+            dh = model(dfeatures, dadj, None, True)
+
+            predict(dlabels, dfeatures, adj, dh)
+
+            for node in node_matrix:
+                bisect.insort(phi, [node[-2] + node[-1], node[0]])
+
+            # updategraph-remove
+            num = bisect.bisect(phi, [start_time, -1])
+            if num > k:
+                rmv_phi = [e[1] for e in phi[:num]]
+                phi = phi[num:]
+                vmatrix = [v for v in vmatrix if v[0] not in rmv_phi]
+                new_e = [e for e in new_e if e[0] not in rmv_phi and e[1] not in rmv_phi]
+                for table in conflict_operators:
+                    conflict_operators[table] = [v for v in conflict_operators[table] if v[0] not in rmv_phi]
 
 
 
