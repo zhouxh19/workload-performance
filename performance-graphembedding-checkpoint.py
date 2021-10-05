@@ -25,7 +25,7 @@ import glob
 
 
 cur_path = os.path.abspath('.')
-data_path = cur_path + '/pmodel_data/job/'
+data_path = os.path.join(cur_path,"pmodel_data","job")
 
 edge_dim = 100000 # upper bound of edges
 node_dim = 1000 # upper bound of nodes
@@ -342,7 +342,7 @@ def generate_graph(wid, path = data_path):
 
     oid = 0
     min_timestamp = -1
-    with open(path + "sample-plan-" + str(wid) + ".txt", "r") as f:        
+    with open(path + "sample-plan-" + str(wid) + ".txt", "r") as f:
         
         # vertex: operators
         # edge: child-parent relations
@@ -466,19 +466,18 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 
 import torch.nn.functional as F
 def load_data(dataset, path=data_path):
-    
+
     print('Loading {} dataset...'.format(dataset))
-    
-    vmatrix = np.genfromtxt("{}{}.content".format(path, dataset),
+#    print("now dataset: {}\n".format(os.path.join(path, dataset)))
+    vmatrix = np.genfromtxt("{}.content".format(os.path.join(path, dataset)),
                                         dtype=np.dtype(str))
     
-    ematrix = np.genfromtxt("{}{}.cites".format(path, dataset),
+    ematrix = np.genfromtxt("{}.cites".format(os.path.join(path, dataset)),
                                     dtype=np.float32)
     
     return load_data_from_matrix(vmatrix, ematrix)
 
-# adj, features, labels, idx_train, idx_val, idx_test = 
-# load_data(path = r"C:\Users\Filene\Downloads\workload-performance-main\workload-performance-main\pmodel_data\job\graph\sample-plan-", dataset = "0")
+# adj, features, labels, idx_train, idx_val, idx_test =
 import random
 
 def load_data_from_matrix(vmatrix, ematrix):
@@ -735,8 +734,8 @@ optimizer = optim.Adam(model.parameters(),
 
 for wid in range(iteration_num):
     print("[graph {}]".format(wid))
-    # Load data 
-    adj, features, labels, idx_train, idx_val, idx_test = load_data(path = data_path + "graph/", dataset = "sample-plan-" + str(wid))
+    # Load data
+    adj, features, labels, idx_train, idx_val, idx_test = load_data(path = os.path.join(data_path,"merged-graph"), dataset = "sample-plan-" + str(wid))
     # print(adj.shape)
     
     # Model Training
@@ -758,7 +757,7 @@ for wid in range(iteration_num):
 
 for wid in range(iteration_num, num_graphs):
     # Load data
-    adj, features, labels, idx_train, idx_val, idx_test = load_data(path = data_path + "graph/", dataset = "sample-plan-" + str(wid))
+    adj, features, labels, idx_train, idx_val, idx_test = load_data(path = os.path.join(data_path, "graph/"), dataset = "sample-plan-" + str(wid))
     
     # Model Testing
     t_total = time.time()
