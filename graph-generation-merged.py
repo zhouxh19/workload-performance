@@ -387,11 +387,11 @@ for wid in range(num_graphs):
     print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
 
     # write into files
-    with open(data_path + "merged-graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
+    with open( os.path.join (data_path, "merged-graph", "sample-plan-" + str(wid) + ".content"), "w") as wf:
        for v in mergematrix:
            wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\t" + str(v[5]) + "\t" + str(v[6]) + "\n")
     for i, edgematrix in enumerate(ematrix):
-        with open(data_path + "merged-graph/" + "sample-plan-" + str(wid) + "-" + str(i) + ".cites", "w") as wf:
+        with open( os.path.join (data_path, "merged-graph" , "sample-plan-" + str(wid) + "-" + str(i) + ".cites"), "w") as wf:
            for e in edgematrix:
                wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
 

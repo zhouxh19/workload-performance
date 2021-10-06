@@ -735,7 +735,7 @@ optimizer = optim.Adam(model.parameters(),
 for wid in range(iteration_num):
     print("[graph {}]".format(wid))
     # Load data
-    adj, features, labels, idx_train, idx_val, idx_test = load_data(path = os.path.join(data_path,"merged-graph"), dataset = "sample-plan-" + str(wid))
+    adj, features, labels, idx_train, idx_val, idx_test = load_data(path = os.path.join(data_path,"graph"), dataset = "sample-plan-" + str(wid))
     # print(adj.shape)
     
     # Model Training
