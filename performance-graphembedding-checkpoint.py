@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
 from __future__ import division
 from __future__ import print_function
 
@@ -20,9 +19,6 @@ import glob
 
 
 # # 1. Generate Workload Dataset
-
-# In[2]:
-
 
 cur_path = os.path.abspath('.')
 data_path = os.path.join(cur_path,"pmodel_data","job")
@@ -55,8 +51,6 @@ argus = { "mysql": {
 argus["postgresql"]["host"]
 '''
 
-
-# In[3]:
 
 
 # obtain and normalize configuration knobs
@@ -177,9 +171,6 @@ class Database:
 
 # db = Database("mysql")
 # print(db.fetch_knob())
-
-
-# In[4]:
 
 
 # actual runtime:  actuall executed (training data) / estimated by our model
@@ -372,50 +363,7 @@ def generate_graph(wid, path = data_path):
     return vmatrix, ematrix, mergematrix
 
 
-# In[5]:
-
-'''
-# Step-0: split the workloads into multiple concurrent queries at different time ("sample-plan-x")
-
-workloads = glob.glob("./pmodel_data/job/sample-plan-*")
-
-start_time = time.time()
-num_graphs = 3000
-for wid in range(num_graphs):
-    st = time.time()
-
-    vmatrix, ematrix, mergematrix = generate_graph(wid)
-    # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
-    print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
-
-### ZXN TEMP Modified BEGIN
-    with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
-       for v in vmatrix:
-           wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\n")
-    with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".cites", "w") as wf:
-       for e in ematrix:
-           wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
-### ZXN TEMP Modified ENDED
-
-end_time = time.time()
-
-print("Total Time:{}".format(end_time - start_time))
-'''
-
-# In[6]:
-
-
-'''
-graphs = glob.glob("./pmodel_data/job/graph/sample-plan-*")
-num_graphs = int(len(graphs)/2)
-print("[Generated Graph]", num_graphs)
-'''
-
-
 # # Graph Embedding Algorithm
-
-# In[7]:
-
 
 import numpy as np
 import scipy.sparse as sp
@@ -423,8 +371,6 @@ import torch
 
 
 # ## Load Data
-
-# In[8]:
 
 
 def encode_onehot(labels):
@@ -459,9 +405,6 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     values = torch.from_numpy(sparse_mx.data)
     shape = torch.Size(sparse_mx.shape)
     return torch.sparse.FloatTensor(indices, values, shape)
-
-
-# In[9]:
 
 
 import torch.nn.functional as F
@@ -552,9 +495,6 @@ def load_data_from_matrix(vmatrix, ematrix):
     return adj, features, labels, idx_train, idx_val, idx_test
 
 
-# In[10]:
-
-
 import torch.nn.functional as F
 
 x=np.asarray([[1,2], [3, 4]])
@@ -567,9 +507,6 @@ print(X.shape[0])
 
 
 # ## GCN Model
-
-# In[11]:
-
 
 class arguments():
     def __init__(self):
@@ -585,14 +522,10 @@ class arguments():
 args = arguments()
 
 
-# In[12]:
-
 
 from pathlib import Path
 print(Path().resolve())
 
-
-# In[13]:
 
 
 import math
@@ -633,10 +566,6 @@ class GraphConvolution(Module):
     def __repr__(self):
         return self.__class__.__name__ + ' ('                + str(self.in_features) + ' -> '                + str(self.out_features) + ')'
 
-
-# In[14]:
-
-
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -661,9 +590,6 @@ class GCN(nn.Module):
         
 #        return F.log_softmax(x, dim=1)
         return x
-
-
-# In[15]:
 
 
 import time
@@ -765,8 +691,6 @@ for wid in range(iteration_num, num_graphs):
     print("Testing Finished!")
     print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
 
-
-# In[16]:
 
 # assume graph_num >> come_num
 graph_num = 4
@@ -870,11 +794,4 @@ for wid in range(graph_num, graph_num + come_num):
                 new_e = [e for e in new_e if e[0] not in rmv_phi and e[1] not in rmv_phi]
                 for table in conflict_operators:
                     conflict_operators[table] = [v for v in conflict_operators[table] if v[0] not in rmv_phi]
-
-
-
-# In[ ]:
-
-
-
 
