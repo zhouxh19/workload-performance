@@ -7,18 +7,14 @@ from __future__ import print_function
 import json
 import numpy as np
 import os
-
 import configparser
 import psycopg2
 import pymysql
 import pymysql.cursors as pycursor
-import numpy as np
 
 import time
 import glob
 
-
-# # 1. Generate Workload Dataset
 
 cur_path = os.path.abspath('.')
 data_path = os.path.join(cur_path,"pmodel_data","job")
@@ -32,11 +28,6 @@ class DataType(IntEnum):
     NestedLoop = 1
     IndexScan = 2
 '''
-mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5, 'Update': 6} # operator types in the queries
-
-oid = 0 # operator number
-min_timestamp = -1 # minimum timestamp of a graph
-
 '''
 argus = { "mysql": {
     "host": "166.111.121.62",
@@ -50,11 +41,9 @@ argus = { "mysql": {
             "user": "postgres"}}
 argus["postgresql"]["host"]
 '''
-
-
+mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5, 'Update': 6}
 
 # obtain and normalize configuration knobs
-
 class DictParser(configparser.ConfigParser):
     def read_dict(self):
         d = dict(self._sections)
@@ -62,28 +51,22 @@ class DictParser(configparser.ConfigParser):
             d[k] = dict(d[k])
         return d
 
-cf = DictParser()
-cf.read("config.ini", encoding="utf-8")
-config_dict = cf.read_dict()
-
-
 def parse_knob_config():
     _knob_config = config_dict["knob_config"]
     for key in _knob_config:
         _knob_config[key] = json.loads(str(_knob_config[key]).replace("\'", "\""))
     return _knob_config
 
-
 class Database:
     def __init__(self, server_name='postgresql'):
-        
+
         knob_config = parse_knob_config()
         self.knob_names = [knob for knob in knob_config]
         self.knob_config = knob_config
         self.server_name = server_name
-        
+
         # print("knob_names:", self.knob_names)
-        
+
         try:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -118,17 +101,18 @@ class Database:
                     time.sleep(10)
             if conn == -1:
                 raise Exception
-                
+
             return conn
-            
+
         elif self.server_name == 'postgresql':
             sucess = 0
             conn = -1
             count = 0
             while not sucess and count < 3:
                 try:
-                    db_name = "INFORMATION_SCHEMA" # zxn Modified.
-                    conn = psycopg2.connect(database="INFORMATION_SCHEMA", user="lixizhang", password="xi10261026zhang", host="166.111.5.177", port="5433")
+                    db_name = "INFORMATION_SCHEMA"  # zxn Modified.
+                    conn = psycopg2.connect(database="INFORMATION_SCHEMA", user="lixizhang", password="xi10261026zhang",
+                                            host="166.111.5.177", port="5433")
                     sucess = 1
                 except Exception as result:
                     count += 1
@@ -156,50 +140,49 @@ class Database:
             # state metrics
             cursor.execute(sql)
             result = cursor.fetchall()
-            
+
             for i in range(len(self.knob_names)):
-                value = result[0]["@@%s" % self.knob_names[i]] if result[0]["@@%s" % self.knob_names[i]]!=0 else self.knob_config[self.knob_names[i]]["max_value"] # not limit if value equals 0
-                
+                value = result[0]["@@%s" % self.knob_names[i]] if result[0]["@@%s" % self.knob_names[i]] != 0 else \
+                self.knob_config[self.knob_names[i]]["max_value"]  # not limit if value equals 0
+
                 # print(value, self.knob_config[self.knob_names[i]]["max_value"], self.knob_config[self.knob_names[i]]["min_value"])
-                state_list = np.append(state_list, value / (self.knob_config[self.knob_names[i]]["max_value"] - self.knob_config[self.knob_names[i]]["min_value"]))
+                state_list = np.append(state_list, value / (
+                            self.knob_config[self.knob_names[i]]["max_value"] - self.knob_config[self.knob_names[i]][
+                        "min_value"]))
             cursor.close()
             conn.close()
         except Exception as error:
             print("fetch_knob Error:", error)
-        
-        return state_list
 
-# db = Database("mysql")
-# print(db.fetch_knob())
+        return state_list
 
 
 # actual runtime:  actuall executed (training data) / estimated by our model
 # operators in the same plan can have data conflicts (parallel)
-
 def compute_cost(node):
     return (float(node["Total Cost"]) - float(node["Startup Cost"])) / 1e6
 
-def compute_time(node):
-    # return float(node["Actual Total Time"]) - float(node["Actual Startup Time"]) 
-    return float(node["Actual Total Time"]) # mechanism within pg
-    
-def get_used_tables(node):
 
+def compute_time(node):
+    # return float(node["Actual Total Time"]) - float(node["Actual Startup Time"])
+    return float(node["Actual Total Time"])  # mechanism within pg
+
+
+def get_used_tables(node):
     tables = []
 
     stack = [node]
     while stack != []:
         parent = stack.pop(0)
-        
+
         if "Relation Name" in parent:
             tables.append(parent["Relation Name"])
-        
+
         if "Plans" in parent:
             for n in parent["Plans"]:
                 stack.append(n)
 
-    return  tables
-
+    return tables
 
 def extract_plan(sample, conflict_operators):
     global mp_optype, oid, min_timestamp
@@ -210,16 +193,16 @@ def extract_plan(sample, conflict_operators):
         start_time = float(sample["start_time"]) - min_timestamp
     # function: extract SQL feature
     # return: start_time, node feature, edge feature
-    
+
     plan = sample["plan"]
     while isinstance(plan, list):
         plan = plan[0]
-    # Features: print(plan.keys()) 
-        # start time = plan["start_time"]
-        # node feature = [Node Type, Total Cost:: Actual Total Time]
-        # node label = [Actual Startup Time, Actual Total Time]
+    # Features: print(plan.keys())
+    # start time = plan["start_time"]
+    # node feature = [Node Type, Total Cost:: Actual Total Time]
+    # node label = [Actual Startup Time, Actual Total Time]
 
-    plan = plan["Plan"] # root node
+    plan = plan["Plan"]  # root node
     node_matrix = []
     edge_matrix = []
     node_merge_matrix = []
@@ -230,41 +213,44 @@ def extract_plan(sample, conflict_operators):
         parent = stack.pop(0)
         parent["oid"] = oid
         oid = oid + 1
-        
+
         if "Plans" in parent:
             for node in parent["Plans"]:
-                stack.append(node)    
-    
+                stack.append(node)
+
     stack = [plan]
     while stack != []:
         parent = stack.pop(0)
         run_cost = compute_cost(parent)
         run_time = compute_time(parent)
         # print(parent["Actual Total Time"], parent["Actual Startup Time"], run_time)
-        
+
         if parent["Node Type"] not in mp_optype:
             mp_optype[parent["Node Type"]] = len(mp_optype)
-        
+
         tables = get_used_tables(parent)
         # print("[tables]", tables)
-        
-        operator_info = [parent["oid"], start_time + parent["Startup Cost"] / 1e6, start_time + parent["Total Cost"] / 1e6]
-        
+
+        operator_info = [parent["oid"], start_time + parent["Startup Cost"] / 1e6,
+                         start_time + parent["Total Cost"] / 1e6]
+
         for table in tables:
             if table not in conflict_operators:
                 conflict_operators[table] = [operator_info]
             else:
                 conflict_operators[table].append(operator_info)
-        
-                
-        node_feature = [parent["oid"], mp_optype[parent["Node Type"]], run_cost, start_time + float(parent["Actual Startup Time"]), run_time]
-        
+
+        node_feature = [parent["oid"], mp_optype[parent["Node Type"]], run_cost,
+                        start_time + float(parent["Actual Startup Time"]), run_time]
+
         node_matrix = [node_feature] + node_matrix
 
-        node_merge_feature = [parent["oid"], start_time + parent["Startup Cost"] / 1e6, start_time + parent["Total Cost"] / 1e6, mp_optype[parent["Node Type"]], run_cost, start_time + float(parent["Actual Startup Time"]), run_time]
-        node_merge_matrix = [node_merge_feature]  + node_merge_matrix
+        node_merge_feature = [parent["oid"], start_time + parent["Startup Cost"] / 1e6,
+                              start_time + parent["Total Cost"] / 1e6, mp_optype[parent["Node Type"]], run_cost,
+                              start_time + float(parent["Actual Startup Time"]), run_time]
+        node_merge_matrix = [node_merge_feature] + node_merge_matrix
         # [id?, l, r, ....]
-        
+
         if "Plans" in parent:
             for node in parent["Plans"]:
                 stack.append(node)
@@ -275,36 +261,33 @@ def extract_plan(sample, conflict_operators):
 
     return start_time, node_matrix, edge_matrix, conflict_operators, node_merge_matrix
 
-
 def overlap(node_i, node_j):
-    
     if (node_j[1] < node_i[2] and node_i[2] < node_j[2]):
-        
+
         return (node_i[2] - node_j[1]) / (node_j[2] - min(node_i[1], node_j[1]))
-    
+
     elif (node_i[1] < node_j[2] and node_j[2] < node_i[2]):
-        
+
         return (node_j[2] - node_i[1]) / (node_i[2] - min(node_i[1], node_j[1]))
-    
+
     else:
         return 0
 
 def add_across_plan_relations(conflict_operators, knobs, ematrix):
-    
     # TODO better implementation
     data_weight = 0.1
     for knob in knobs:
         data_weight *= knob
     # print(conflict_operators)
-    
+
     # add relations [rw/ww, rr, config]
     for table in conflict_operators:
         for i in range(len(conflict_operators[table])):
-            for j in range(i+1, len(conflict_operators[table])):
+            for j in range(i + 1, len(conflict_operators[table])):
 
                 node_i = conflict_operators[table][i]
                 node_j = conflict_operators[table][j]
-                
+
                 time_overlap = overlap(node_i, node_j)
                 if time_overlap:
                     ematrix = ematrix + [[node_i[0], node_j[0], -data_weight * time_overlap]]
@@ -315,17 +298,15 @@ def add_across_plan_relations(conflict_operators, knobs, ematrix):
                     ematrix = ematrix + [[conflict_operators[table][i], conflict_operators[table][j], data_weight * time_overlap]]
                     ematrix = ematrix + [[conflict_operators[table][j], conflict_operators[table][i], data_weight * time_overlap]]
                 '''
-                    
+
     return ematrix
 
-import merge
-
-def generate_graph(wid, path = data_path):
+def generate_graph(wid, path=data_path):
     global oid, min_timestamp
     # fuction
     # return
     # todo: timestamp
-    
+
     vmatrix = []
     ematrix = []
     mergematrix = []
@@ -334,33 +315,67 @@ def generate_graph(wid, path = data_path):
     oid = 0
     min_timestamp = -1
     with open(path + "sample-plan-" + str(wid) + ".txt", "r") as f:
-        
         # vertex: operators
         # edge: child-parent relations
         for sample in f.readlines():
-            
             sample = json.loads(sample)
-            
+
             # Step 1: read (operators, parent-child edges) in separate plans
-            start_time, node_matrix, edge_matrix, conflict_operators, node_merge_matrix = extract_plan(sample, conflict_operators)
+            start_time, node_matrix, edge_matrix, conflict_operators, node_merge_matrix = extract_plan(sample,
+                                                                                                       conflict_operators)
 
             mergematrix = mergematrix + node_merge_matrix
             vmatrix = vmatrix + node_matrix
             ematrix = ematrix + edge_matrix
 
-
-# ZXN TEMP Modified BEGIN
+        # ZXN TEMP Modified BEGIN
         # Step 2: read related knobs
         db = Database("mysql")
         knobs = db.fetch_knob()
-            
+
         # Step 3: add relations across queries
         ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
-        
+
         # edge: data relations based on (access tables, related knob values)
         # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
-### ZXN TEMP Modified ENDED
+    ### ZXN TEMP Modified ENDED
     return vmatrix, ematrix, mergematrix
+
+
+oid = 0 # operator number
+min_timestamp = -1 # minimum timestamp of a graph
+cf = DictParser()
+cf.read("config.ini", encoding="utf-8")
+config_dict = cf.read_dict()
+
+# db = Database("mysql")
+# print(db.fetch_knob())
+
+# Step-0: split the workloads into multiple concurrent queries at different time ("sample-plan-x")
+
+workloads = glob.glob("./pmodel_data/job/sample-plan-*")
+
+start_time = time.time()
+num_graphs = 3000
+for wid in range(num_graphs):
+    st = time.time()
+    vmatrix, ematrix, mergematrix = generate_graph(wid)
+    # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
+    print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
+
+    with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".content", "w") as wf:
+       for v in vmatrix:
+           wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\n")
+    with open(data_path + "graph/" + "sample-plan-" + str(wid) + ".cites", "w") as wf:
+       for e in ematrix:
+           wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
+
+end_time = time.time()
+print("Total Time:{}".format(end_time - start_time))
+
+graphs = glob.glob("./pmodel_data/job/graph/sample-plan-*")
+num_graphs = int(len(graphs)/2)
+print("[Generated Graph]", num_graphs)
 
 
 # # Graph Embedding Algorithm
@@ -371,6 +386,8 @@ import torch
 
 
 # ## Load Data
+
+# In[8]:
 
 
 def encode_onehot(labels):
@@ -405,6 +422,9 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     values = torch.from_numpy(sparse_mx.data)
     shape = torch.Size(sparse_mx.shape)
     return torch.sparse.FloatTensor(indices, values, shape)
+
+
+# In[9]:
 
 
 import torch.nn.functional as F
@@ -494,7 +514,6 @@ def load_data_from_matrix(vmatrix, ematrix):
     # print("features", features.shape)
     return adj, features, labels, idx_train, idx_val, idx_test
 
-
 import torch.nn.functional as F
 
 x=np.asarray([[1,2], [3, 4]])
@@ -506,8 +525,7 @@ print(X)
 print(X.shape[0])
 
 
-# ## GCN Model
-
+# GCN Model
 class arguments():
     def __init__(self):
         self.cuda = True
@@ -521,12 +539,8 @@ class arguments():
         
 args = arguments()
 
-
-
 from pathlib import Path
 print(Path().resolve())
-
-
 
 import math
 import torch
@@ -566,6 +580,7 @@ class GraphConvolution(Module):
     def __repr__(self):
         return self.__class__.__name__ + ' ('                + str(self.in_features) + ' -> '                + str(self.out_features) + ')'
 
+
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -590,7 +605,6 @@ class GCN(nn.Module):
         
 #        return F.log_softmax(x, dim=1)
         return x
-
 
 import time
 import argparse
@@ -722,7 +736,7 @@ ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
 model = GCN(nfeat=feature_num,
             nhid=args.hidden,
             nclass=node_dim, 
-            dropout=args.dropout)    
+            dropout=args.dropout)
 
 optimizer = optim.Adam(model.parameters(),
                        lr=args.lr, weight_decay=args.weight_decay)
@@ -755,9 +769,10 @@ k = 20
 new_e = []
 conflict_operators = {}
 phi = []
+
 for wid in range(graph_num, graph_num + come_num):
 
-    with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:        
+    with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:
         
         # new query come
         for sample in f.readlines():
