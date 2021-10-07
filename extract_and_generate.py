@@ -187,6 +187,4 @@ def generate_graph(wid, path):
         ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
 
         # edge: data relations based on (access tables, related knob values)
-        # optional: merge
-        # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
     return vmatrix, ematrix, mergematrix, oid, min_timestamp

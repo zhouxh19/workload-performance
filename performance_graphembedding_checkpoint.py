@@ -5,7 +5,6 @@ from __future__ import division
 from __future__ import print_function
 
 import json
-import numpy as np
 import os
 import configparser
 import psycopg2
@@ -161,92 +160,6 @@ from extract_and_generate import extract_plan
 from extract_and_generate import generate_graph
 from extract_and_generate import add_across_plan_relations
 
-'''
-
-
-def overlap(node_i, node_j):
-    if (node_j[1] < node_i[2] and node_i[2] < node_j[2]):
-
-        return (node_i[2] - node_j[1]) / (node_j[2] - min(node_i[1], node_j[1]))
-
-    elif (node_i[1] < node_j[2] and node_j[2] < node_i[2]):
-
-        return (node_j[2] - node_i[1]) / (node_i[2] - min(node_i[1], node_j[1]))
-
-    else:
-        return 0
-
-def add_across_plan_relations(conflict_operators, knobs, ematrix):
-    # TODO better implementation
-    data_weight = 0.1
-    for knob in knobs:
-        data_weight *= knob
-    # print(conflict_operators)
-
-    # add relations [rw/ww, rr, config]
-    for table in conflict_operators:
-        for i in range(len(conflict_operators[table])):
-            for j in range(i + 1, len(conflict_operators[table])):
-
-                node_i = conflict_operators[table][i]
-                node_j = conflict_operators[table][j]
-
-                time_overlap = overlap(node_i, node_j)
-                if time_overlap:
-                    ematrix = ematrix + [[node_i[0], node_j[0], -data_weight * time_overlap]]
-                    ematrix = ematrix + [[node_j[0], node_i[0], -data_weight * time_overlap]]
-
-
-                if overlap(i, j) and ("rw" or "ww"):
-                    ematrix = ematrix + [[conflict_operators[table][i], conflict_operators[table][j], data_weight * time_overlap]]
-                    ematrix = ematrix + [[conflict_operators[table][j], conflict_operators[table][i], data_weight * time_overlap]]
-                
-
-    return ematrix
-
-
-def generate_graph(wid, path):
-    global oid, min_timestamp
-    # from performance_graphembedding_checkpoint import oid
-    # from performance_graphembedding_checkpoint import min_timestamp
-    # fuction
-    # return
-    # todo: timestamp
-
-    vmatrix = []
-    ematrix = []
-    mergematrix = []
-    conflict_operators = {}
-
-    oid = 0
-    min_timestamp = -1
-    with open( os.path.join(path,"sample-plan-" + str(wid) + ".txt"), "r") as f:
-        # vertex: operators
-        # edge: child-parent relations
-        for sample in f.readlines():
-            sample = json.loads(sample)
-
-            # Step 1: read (operators, parent-child edges) in separate plans
-            start_time, node_matrix, edge_matrix, conflict_operators, node_merge_matrix = extract_plan(sample,
-                                                                                                       conflict_operators)
-
-            mergematrix = mergematrix + node_merge_matrix
-            vmatrix = vmatrix + node_matrix
-            ematrix = ematrix + edge_matrix
-
-        # Step 2: read related knobs
-        db = Database("mysql")
-        knobs = db.fetch_knob()
-
-        # Step 3: add relations across queries
-        ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
-
-        # edge: data relations based on (access tables, related knob values)
-        # optional: merge
-        # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
-    return vmatrix, ematrix, mergematrix
-'''
-
 cf = DictParser()
 cf.read("config.ini", encoding="utf-8")
 config_dict = cf.read_dict()
@@ -260,11 +173,13 @@ workloads = glob.glob("./pmodel_data/job/sample-plan-*")
 
 start_time = time.time()
 # num_graphs = 3000
-# temp modified
+# zxn modified
+# notation: oid may be unuseful.
 num_graphs = 2
 for wid in range(num_graphs):
     st = time.time()
     vmatrix, ematrix, mergematrix, oid, min_timestamp = generate_graph(wid, data_path)
+    # optional: merge
     # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
     print("[graph {}]".format(wid), "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
 
@@ -284,133 +199,9 @@ print("[Generated Graph]", num_graphs)
 
 
 # # Graph Embedding Algorithm
-
 import numpy as np
-import scipy.sparse as sp
+
 import torch
-
-
-# ## Load Data
-
-def encode_onehot(labels):
-    classes = set(labels)
-    classes_dict = {c: np.identity(len(classes))[i, :] for i, c in
-                    enumerate(classes)}
-    labels_onehot = np.array(list(map(classes_dict.get, labels)),
-                             dtype=np.int32)
-    return labels_onehot
-
-def normalize(mx):
-    """Row-normalize sparse matrix"""
-    rowsum = np.array(mx.sum(1))
-    r_inv = np.power(rowsum, -1).flatten()
-    r_inv[np.isinf(r_inv)] = 0.
-    r_mat_inv = sp.diags(r_inv)
-    mx = r_mat_inv.dot(mx)
-    return mx
-
-def accuracy(output, labels):
-    preds = output.max(1)[1].type_as(labels)
-    correct = preds.eq(labels).double()
-    correct = correct.sum()
-    return correct / len(labels)
-
-
-def sparse_mx_to_torch_sparse_tensor(sparse_mx):
-    """Convert a scipy sparse matrix to a torch sparse tensor."""
-    sparse_mx = sparse_mx.tocoo().astype(np.float32)
-    indices = torch.from_numpy(
-        np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
-    values = torch.from_numpy(sparse_mx.data)
-    shape = torch.Size(sparse_mx.shape)
-    return torch.sparse.FloatTensor(indices, values, shape)
-
-def load_data(dataset, path=data_path):
-
-    print('Loading {} dataset...'.format(dataset))
-#    print("now dataset: {}\n".format(os.path.join(path, dataset)))
-    vmatrix = np.genfromtxt("{}.content".format(os.path.join(path, dataset)),
-                                        dtype=np.dtype(str))
-    
-    ematrix = np.genfromtxt("{}.cites".format(os.path.join(path, dataset)),
-                                    dtype=np.float32)
-    
-    return load_data_from_matrix(vmatrix, ematrix)
-
-# adj, features, labels, idx_train, idx_val, idx_test =
-import random
-
-def load_data_from_matrix(vmatrix, ematrix):
-    idx_features_labels = vmatrix
-    
-    # encode vertices
-    features = sp.csr_matrix(idx_features_labels[:, 1:-1], dtype=np.float32)
-    
-    # encode labels
-    # labels = encode_onehot(idx_features_labels[:, -2])
-    labels = idx_features_labels[:, -1].astype(float)
-    
-    # encode edges
-    idx = np.array(idx_features_labels[:, 0], dtype=np.int32)
-
-    
-    idx_map = {j: i for i, j in enumerate(idx)}
-    edges_unordered = ematrix[:, :-1]
-
-    # print(list(map(idx_map.get, edges_unordered.flatten())))
-    # print(edges_unordered.flatten())
-    
-    edges = np.array(list(map(idx_map.get, edges_unordered.flatten())),
-                     dtype=np.int32).reshape(edges_unordered.shape)
-    
-    # edges (weights are computed in gcn)
-    
-    # modified begin.
-    edges_value = ematrix[:, -1:]
-    # modified end.
-    
-    # adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),shape=(node_dim, node_dim),dtype=np.float32)
-    # print("old_adj = ", adj)
-    adj = sp.coo_matrix((edges_value[:,0], (edges[:, 0], edges[:, 1])),shape=(node_dim, node_dim),dtype=np.float32)
-    # print("new_adj = ", adj)
-    # print(adj.shape)
-    
-    # build symmetric adjacency matrix
-    # adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
-    
-    features = normalize(features)
-    adj = normalize(adj + sp.eye(adj.shape[0]))
-    
-    operator_num = adj.shape[0]
-    idx_train = range(int(0.8 * operator_num))
-    # print("idx_train", idx_train)
-    idx_val = range(int(0.8 * operator_num), int(0.9 * operator_num))
-    idx_test = range(int(0.9 * operator_num), int(operator_num))
-
-    features = torch.FloatTensor(np.array(features.todense()))
-    # labels = torch.LongTensor(np.where(labels)[1])
-    adj = sparse_mx_to_torch_sparse_tensor(adj)
-
-    idx_train = torch.LongTensor(idx_train)
-    idx_val = torch.LongTensor(idx_val)
-    idx_test = torch.LongTensor(idx_test)
-    
-    # padding to the same size
-    # print(features.shape)
-    # print(node_dim - features.shape[0])
-    dim=(0, 0, 0,  node_dim - features.shape[0])
-    features=F.pad(features, dim, "constant", value=0)
-
-    labels = labels.astype(np.float32)
-    labels = torch.from_numpy(labels)
-    # print(labels[idx_train].dtype)
-    labels.unsqueeze(1)
-    labels = labels * 10
-    labels=F.pad(labels, [0, node_dim - labels.shape[0]], "constant", value=0) 
-    
-    # print("features", features.shape)
-    return adj, features, labels, idx_train, idx_val, idx_test
-
 import torch.nn.functional as F
 
 x=np.asarray([[1,2], [3, 4]])
@@ -440,7 +231,6 @@ from pathlib import Path
 print(Path().resolve())
 
 import math
-import torch
 from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
 
@@ -506,6 +296,9 @@ class GCN(nn.Module):
 import time
 import argparse
 import numpy as np
+from dataloder import accuracy
+from dataloder import load_data
+from dataloder import load_data_from_matrix
 
 import torch
 import torch.nn.functional as F
