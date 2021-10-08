@@ -1,5 +1,6 @@
 import os
 import json
+import time
 
 mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5, 'Update': 6}
 
@@ -188,3 +189,25 @@ def generate_graph(wid, path):
 
         # edge: data relations based on (access tables, related knob values)
     return vmatrix, ematrix, mergematrix, oid, min_timestamp
+def output_file():
+    from performance_graphembedding_checkpoint import data_path
+    start_time = time.time()
+    num_graphs = 3000
+    # notation: oid may be unused.
+    for wid in range(num_graphs):
+        st = time.time()
+        vmatrix, ematrix, mergematrix, oid, min_timestamp = generate_graph(wid, data_path)
+        # optional: merge
+        # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
+        print("[graph {}]".format(wid),
+              "time:{}; #-vertex:{}, #-edge:{}".format(time.time() - st, len(vmatrix), len(ematrix)))
+
+        with open(os.path.join(data_path, "graph", "sample-plan-" + str(wid) + ".content"), "w") as wf:
+            for v in vmatrix:
+                wf.write(str(v[0]) + "\t" + str(v[1]) + "\t" + str(v[2]) + "\t" + str(v[3]) + "\t" + str(v[4]) + "\n")
+        with open(os.path.join(data_path, "graph", "sample-plan-" + str(wid) + ".cites"), "w") as wf:
+            for e in ematrix:
+                wf.write(str(e[0]) + "\t" + str(e[1]) + "\t" + str(e[2]) + "\n")
+
+    end_time = time.time()
+    print("Total Time:{}".format(end_time - start_time))

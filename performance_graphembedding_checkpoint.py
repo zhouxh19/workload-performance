@@ -51,6 +51,7 @@ min_timestamp = -1 # minimum timestamp of a graph
 from extract_and_generate import extract_plan
 from extract_and_generate import generate_graph
 from extract_and_generate import add_across_plan_relations
+from extract_and_generate import output_file
 
 cf = DictParser()
 cf.read("config.ini", encoding="utf-8")
@@ -61,8 +62,8 @@ config_dict = cf.read_dict()
 
 # Step-0: split the workloads into multiple concurrent queries at different time ("sample-plan-x")
 
-workloads = glob.glob("./pmodel_data/job/sample-plan-*")
-
+# workloads = glob.glob("./pmodel_data/job/sample-plan-*")
+'''
 start_time = time.time()
 num_graphs = 3000
 # notation: oid may be unused.
@@ -82,6 +83,9 @@ for wid in range(num_graphs):
 
 end_time = time.time()
 print("Total Time:{}".format(end_time - start_time))
+'''
+#
+# output_file()
 
 graphs = glob.glob("./pmodel_data/job/graph/sample-plan-*")
 num_graphs = int(len(graphs)/2)
@@ -224,12 +228,12 @@ conflict_operators = {}
 
 for wid in range(graph_num):
     
-    with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:    
+    with open( os.path.join(data_path, "sample-plan-" + str(wid) + ".txt"), "r") as f:
 
         for sample in f.readlines():
             sample = json.loads(sample)
             
-            start_time, node_matrix, edge_matrix, conflict_operators, _ , min_timestamp = extract_plan(sample, conflict_operators)
+            start_time, node_matrix, edge_matrix, conflict_operators, _ , min_timestamp = extract_plan(sample, conflict_operators, oid, min_timestamp)
             
             vmatrix = vmatrix + node_matrix
             ematrix = ematrix + edge_matrix
@@ -278,7 +282,7 @@ phi = []
 
 for wid in range(graph_num, graph_num + come_num):
 
-    with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:
+    with open(os.path.join(data_path, "sample-plan-" + str(wid) + ".txt"), "r") as f:
         
         # new query come
         for sample in f.readlines():
@@ -286,7 +290,7 @@ for wid in range(graph_num, graph_num + come_num):
             # updategraph-add
             sample = json.loads(sample)
             
-            start_time, node_matrix, edge_matrix, conflict_operators, _ = extract_plan(sample, conflict_operators)
+            start_time, node_matrix, edge_matrix, conflict_operators, _ = extract_plan(sample, conflict_operators, oid, min_timestamp)
             
             vmatrix = vmatrix + node_matrix
             new_e = new_e + edge_matrix
