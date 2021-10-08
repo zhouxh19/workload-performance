@@ -290,7 +290,7 @@ for wid in range(graph_num, graph_num + come_num):
             # updategraph-add
             sample = json.loads(sample)
             
-            start_time, node_matrix, edge_matrix, conflict_operators, _ = extract_plan(sample, conflict_operators, oid, min_timestamp)
+            start_time, node_matrix, edge_matrix, conflict_operators, _, min_timestamp = extract_plan(sample, conflict_operators, oid, min_timestamp)
             
             vmatrix = vmatrix + node_matrix
             new_e = new_e + edge_matrix
