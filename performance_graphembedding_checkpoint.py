@@ -40,122 +40,14 @@ argus = { "mysql": {
             "user": "postgres"}}
 argus["postgresql"]["host"]
 '''
-
-# obtain and normalize configuration knobs
-class DictParser(configparser.ConfigParser):
-    def read_dict(self):
-        d = dict(self._sections)
-        for k in d:
-            d[k] = dict(d[k])
-        return d
-
-def parse_knob_config():
-    _knob_config = config_dict["knob_config"]
-    for key in _knob_config:
-        _knob_config[key] = json.loads(str(_knob_config[key]).replace("\'", "\""))
-    return _knob_config
-
-class Database:
-    def __init__(self, server_name='postgresql'):
-
-        knob_config = parse_knob_config()
-        self.knob_names = [knob for knob in knob_config]
-        self.knob_config = knob_config
-        self.server_name = server_name
-
-        # print("knob_names:", self.knob_names)
-
-        try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-            sql = "SELECT count FROM INFORMATION_SCHEMA.INNODB_METRICS where status='enabled'"
-            cursor.execute(sql)
-            result = cursor.fetchall()
-
-            self.internal_metric_num = len(result)
-            cursor.close()
-            conn.close()
-        except Exception as err:
-            print("execute sql error:", err)
-
-    def _get_conn(self):
-        if self.server_name == 'mysql':
-            sucess = 0
-            conn = -1
-            count = 0
-            while not sucess and count < 3:
-                try:
-                    conn = pymysql.connect(host="166.111.121.62",
-                                           port=3306,
-                                           user="feng",
-                                           password="db10204",
-                                           db='INFORMATION_SCHEMA',
-                                           connect_timeout=36000,
-                                           cursorclass=pycursor.DictCursor)
-
-                    sucess = 1
-                except Exception as result:
-                    count += 1
-                    time.sleep(10)
-            if conn == -1:
-                raise Exception
-
-            return conn
-
-        elif self.server_name == 'postgresql':
-            sucess = 0
-            conn = -1
-            count = 0
-            while not sucess and count < 3:
-                try:
-                    db_name = "INFORMATION_SCHEMA"  # zxn Modified.
-                    conn = psycopg2.connect(database="INFORMATION_SCHEMA", user="lixizhang", password="xi10261026zhang",
-                                            host="166.111.5.177", port="5433")
-                    sucess = 1
-                except Exception as result:
-                    count += 1
-                    time.sleep(10)
-            if conn == -1:
-                raise Exception
-            return conn
-
-        else:
-            print('数据库连接不上...')
-            return
-
-    def fetch_knob(self):
-        state_list = np.append([], [])
-        try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-            sql = "select"
-            for i, knob in enumerate(self.knob_names):
-                sql = sql + ' @@' + knob
-
-                if i < len(self.knob_names) - 1:
-                    sql = sql + ', '
-
-            # state metrics
-            cursor.execute(sql)
-            result = cursor.fetchall()
-
-            for i in range(len(self.knob_names)):
-                value = result[0]["@@%s" % self.knob_names[i]] if result[0]["@@%s" % self.knob_names[i]] != 0 else \
-                self.knob_config[self.knob_names[i]]["max_value"]  # not limit if value equals 0
-
-                # print(value, self.knob_config[self.knob_names[i]]["max_value"], self.knob_config[self.knob_names[i]]["min_value"])
-                state_list = np.append(state_list, value / (
-                            self.knob_config[self.knob_names[i]]["max_value"] - self.knob_config[self.knob_names[i]][
-                        "min_value"]))
-            cursor.close()
-            conn.close()
-        except Exception as error:
-            print("fetch_knob Error:", error)
-
-        return state_list
+# Database -> details in Database.py
+from Database import DictParser
+from Database import Database
 
 oid = 0 # operator number
 min_timestamp = -1 # minimum timestamp of a graph
+
+# extract_plan & generate_graph & add_accross_plan_relations
 from extract_and_generate import extract_plan
 from extract_and_generate import generate_graph
 from extract_and_generate import add_across_plan_relations
@@ -172,10 +64,8 @@ config_dict = cf.read_dict()
 workloads = glob.glob("./pmodel_data/job/sample-plan-*")
 
 start_time = time.time()
-# num_graphs = 3000
-# zxn modified
-# notation: oid may be unuseful.
-num_graphs = 2
+num_graphs = 3000
+# notation: oid may be unused.
 for wid in range(num_graphs):
     st = time.time()
     vmatrix, ematrix, mergematrix, oid, min_timestamp = generate_graph(wid, data_path)
@@ -198,7 +88,7 @@ num_graphs = int(len(graphs)/2)
 print("[Generated Graph]", num_graphs)
 
 
-# # Graph Embedding Algorithm
+# Graph Embedding Algorithm
 import numpy as np
 
 import torch
@@ -212,6 +102,7 @@ X=F.pad(X,pad_dims,"constant")
 print(X)
 print(X.shape[0])
 
+# GCN model -> details in GCN.py
 from GCN import arguments
 args = arguments()
 
@@ -221,6 +112,7 @@ from GCN import GCN
 
 import time
 import numpy as np
+# dataloader -> details in dataloader.py
 from dataloader import accuracy
 from dataloader import load_data
 from dataloader import load_data_from_matrix
@@ -423,4 +315,3 @@ for wid in range(graph_num, graph_num + come_num):
                 new_e = [e for e in new_e if e[0] not in rmv_phi and e[1] not in rmv_phi]
                 for table in conflict_operators:
                     conflict_operators[table] = [v for v in conflict_operators[table] if v[0] not in rmv_phi]
-
