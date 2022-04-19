@@ -1,11 +1,20 @@
 import glob
+import json
+import os
 import time
+import bisect
+
+import numpy as np
 import torch.nn.functional as F
 import torch.optim as optim
 
 from GCN import GCN, get_model, get_optimizer
 from constants import args, NODE_DIM, DATAPATH
-from graphembedding import load_data, accuracy
+from dbconnnection import Database
+from graphembedding import load_data, accuracy, load_data_from_matrix
+from graphgen import generate_graph
+from nodeutils import extract_plan, add_across_plan_relations
+
 
 
 def train(epoch, labels, features, adj, idx_train, idx_val, model, optimizer):
@@ -100,3 +109,124 @@ def run_test_no_upd(iteration_num, num_graphs, model):
         test(labels, idx_test, features=features, adj=adj, model=model)
         print("Testing Finished!")
         print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
+
+
+def run_train_upd(demo=True, come_num=0):
+    mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5,
+                 'Update': 6}  # operator types in the queries
+    oid = 0
+    min_timestamp = -1
+    if demo:
+        num_graphs = 4
+        come_num = 1
+    else:
+        graphs = glob.glob("./pmodel_data/job/sample-plan-*")
+        num_graphs = len(graphs)
+        assert come_num == 0
+    num_graphs = 4
+    come_num = 1
+
+    graphs = glob.glob("./pmodel_data/job/sample-plan-*")
+    # num_graphs = len(graphs)
+
+    # train model on a big graph composed of graph_num samples
+    vmatrix = []
+    ematrix = []
+    feature_num = 3
+    conflict_operators = {}
+
+    for wid in range(num_graphs):
+        print(wid)
+        with open(DATAPATH + "/sample-plan-" + str(wid) + ".txt", "r") as f:
+
+            for sample in f.readlines():
+                sample = json.loads(sample)
+
+                start_time, node_matrix, edge_matrix, conflict_operators, _, mp_optype, oid, min_timestamp = \
+                    extract_plan(sample, conflict_operators, mp_optype, oid, min_timestamp)
+
+                vmatrix = vmatrix + node_matrix
+                ematrix = ematrix + edge_matrix
+
+        #db = Database("mysql")
+        #knobs = db.fetch_knob()
+        #ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
+
+    # TODO more features, more complicated model
+    model = get_model(feature_num=feature_num, hidden=args.hidden, nclass=NODE_DIM, dropout=args.dropout)
+    optimizer = get_optimizer(model=model, lr=args.lr, weight_decay=args.weight_decay)
+    adj, features, labels, idx_train, idx_val, idx_test = load_data_from_matrix(np.array(vmatrix, dtype=np.float32),
+                                                                                np.array(ematrix, dtype=np.float32))
+
+    ok_times = 0
+    for epoch in range(args.epochs):
+        # print(features.shape, adj.shape)
+        loss_train = train(epoch, labels, features, adj, idx_train, idx_val, model=model, optimizer=optimizer)
+        if loss_train < 0.002:
+            ok_times += 1
+        if ok_times >= 20:
+            break
+    test(labels, idx_test, features, adj, model)
+    return num_graphs, come_num, model, adj, vmatrix, ematrix, mp_optype, oid, min_timestamp
+
+def run_test_upd(num_graphs, come_num, model, adj, vmatrix, ematrix, mp_optype, oid, min_timestamp):
+    def predict(labels, features, adj, dh):
+        model.eval()
+        output = model(features, adj, dh)
+        loss_test = F.mse_loss(output, labels)
+        acc_test = accuracy(output, labels)
+        print("Test set results:",
+              "loss= {:.4f}".format(loss_test.item()))
+
+#    mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5,
+#                 'Update': 6}  # operator types in the queries
+#    oid = 0
+#    min_timestamp = -1
+
+    # new queries( come_num samples ) come
+    new_e = []
+    conflict_operators = {}
+    phi = []
+    for wid in range(num_graphs, num_graphs + come_num):
+
+        with open(DATAPATH+"/sample-plan-" + str(wid) + ".txt", "r") as f:
+
+            # new query come
+            for sample in f.readlines():
+
+                # updategraph-add
+                sample = json.loads(sample)
+
+                start_time, node_matrix, edge_matrix, conflict_operators, _, mp_optype, oid, min_timestamp = \
+                    extract_plan(sample, conflict_operators, mp_optype, oid, min_timestamp)
+
+                vmatrix = vmatrix + node_matrix
+                new_e = new_e + edge_matrix
+
+                db = Database("mysql")
+                knobs = db.fetch_knob()
+
+                new_e = add_across_plan_relations(conflict_operators, knobs, new_e)
+
+                # incremental prediction
+                dadj, dfeatures, dlabels, _, _, _ = load_data_from_matrix(np.array(vmatrix, dtype=np.float32),
+                                                                          np.array(new_e, dtype=np.float32))
+
+                model.eval()
+                dh = model(dfeatures, dadj, None, True)
+
+                predict(dlabels, dfeatures, adj, dh)
+
+                for node in node_matrix:
+                    bisect.insort(phi, [node[-2] + node[-1], node[0]])
+
+                # updategraph-remove
+                num = bisect.bisect(phi, [start_time, -1])
+                if num > 20:  # ZXN: k = 20, num > k.
+                    rmv_phi = [e[1] for e in phi[:num]]
+                    phi = phi[num:]
+                    vmatrix = [v for v in vmatrix if v[0] not in rmv_phi]
+                    new_e = [e for e in new_e if e[0] not in rmv_phi and e[1] not in rmv_phi]
+                    for table in conflict_operators:
+                        conflict_operators[table] = [v for v in conflict_operators[table] if v[0] not in rmv_phi]
+

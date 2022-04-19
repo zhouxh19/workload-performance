@@ -24,10 +24,10 @@ from constants import NODE_DIM, args
 # In[2]:
 
 
-cur_path = os.path.abspath('.')
-data_path = cur_path + '/pmodel_data/job/'
+# cur_path = os.path.abspath('.')
+# data_path = cur_path + '/pmodel_data/job/'
 
-edge_dim = 100000  # upper bound of edges
+# edge_dim = 100000  # upper bound of edges
 # node_dim = 1000  # upper bound of nodes
 
 '''
@@ -36,11 +36,11 @@ class DataType(IntEnum):
     NestedLoop = 1
     IndexScan = 2
 '''
-mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5,
-              'Update': 6}  # operator types in the queries
+# mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5,
+#              'Update': 6}  # operator types in the queries
 
-oid = 0  # operator number
-min_timestamp = -1  # minimum timestamp of a graph
+# oid = 0  # operator number
+# min_timestamp = -1  # minimum timestamp of a graph
 
 '''
 argus = { "mysql": {
@@ -123,13 +123,6 @@ def generate_graph(wid, path=data_path, mp_optype=None):
 
 '''
 
-
-# In[5]:
-
-
-# In[6]:
-
-
 '''
 graphs = glob.glob("./pmodel_data/job/graph/sample-plan-*")
 num_graphs = int(len(graphs)/2)
@@ -162,69 +155,23 @@ print(X.shape[0])
 from GCN import *
 
 # In[15]:
+from train import run_train_no_upd, run_test_no_upd, run_train_upd, run_test_upd
 
-
-import time
-import numpy as np
-
-import torch.nn.functional as F
-import torch.optim as optim
-
-'''
-def train(epoch, labels, features, adj, idx_train):
-    t = time.time()
-    model.train()
-    optimizer.zero_grad()
-    output = model(features, adj)
-    # print(output[idx_train])
-    # print("output = !",output,"labels = !", labels)
-    loss_train = F.mse_loss(output[idx_train], labels[idx_train])
-
-    # loss_train = nn.CrossEntropyLoss(output[idx_train], labels[idx_train])
-    acc_train = accuracy(output[idx_train], labels[idx_train])
-    loss_train.backward()
-    optimizer.step()
-
-    if not args.fastmode:
-        # Evaluate validation set performance separately,
-        # deactivates dropout during validation run.
-        model.eval()
-        output = model(features, adj)
-        # transfer output to ms
-        # output = output * 1000
-    # https://www.cnblogs.com/52dxer/p/13793911.html
-    loss_val = F.mse_loss(output[idx_val], labels[idx_val])
-    acc_val = accuracy(output[idx_val], labels[idx_val])
-    print('Epoch: {:04d}'.format(epoch + 1),
-          'loss_train: {:.4f}'.format(loss_train.item()),
-          'loss_val: {:.4f}'.format(loss_val.item()),
-          'time: {:.4f}s'.format(time.time() - t))
-
-    return round(loss_train.item(), 4)
-'''
-
-def test(labels, idx_test):
-    model.eval()
-    output = model(features, adj)
-    # transfer output to ms
-    # output = output * 1000
-    loss_test = F.mse_loss(output[idx_test], labels[idx_test])
-    acc_test = accuracy(output[idx_test], labels[idx_test])
-    print("Test set results:",
-          "loss= {:.4f}".format(loss_test.item()))
-
-
-from train import run_train_no_upd, train, run_test_no_upd
-no_upd = False
-if no_upd:
-    iteration_num, num_graphs, model = run_train_no_upd(demo=True)
-    run_test_no_upd(iteration_num, num_graphs, model)
-# iteration_num, num_graphs, model = run_train_no_upd(demo=False)
+if __name__ == "__main__":
+    no_upd = False
+    if no_upd:
+        iteration_num, num_graphs, model = run_train_no_upd(demo=True)
+        run_test_no_upd(iteration_num, num_graphs, model)
+    # iteration_num, num_graphs, model = run_train_no_upd(demo=False)
+    else:
+        num_graphs, come_num, model, adj, vmatrix, ematrix, mp_optype, oid, min_timestamp = run_train_upd(demo=True)
+        run_test_upd(num_graphs, come_num, model, adj, vmatrix, ematrix, mp_optype, oid, min_timestamp)
 
 
 # In[16]:
 
 # assume num_graphs >> come_num
+'''
 num_graphs = 4
 come_num = 1
 
@@ -238,8 +185,7 @@ feature_num = 3
 conflict_operators = {}
 
 for wid in range(num_graphs):
-
-    with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:
+    with open(DATAPATH + "/sample-plan-" + str(wid) + ".txt", "r") as f:
 
         for sample in f.readlines():
             sample = json.loads(sample)
@@ -250,14 +196,14 @@ for wid in range(num_graphs):
             vmatrix = vmatrix + node_matrix
             ematrix = ematrix + edge_matrix
 
-            db = Database("mysql")
-            knobs = db.fetch_knob()
-            ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
+    db = Database("mysql")
+    knobs = db.fetch_knob()
+    ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
+
 
 # TODO more features, more complicated model
 model = get_model(feature_num=feature_num, hidden=args.hidden,nclass=NODE_DIM,dropout=args.dropout)
 optimizer = get_optimizer(model=model,lr=args.lr,weight_decay=args.weight_decay)
-
 adj, features, labels, idx_train, idx_val, idx_test = load_data_from_matrix(np.array(vmatrix, dtype=np.float32),
                                                                             np.array(ematrix, dtype=np.float32))
 
@@ -270,9 +216,10 @@ for epoch in range(args.epochs):
     if ok_times >= 20:
         break
 
-test(labels, idx_test)
+test(labels, idx_test, features, adj, model)
+'''
 
-
+'''
 def predict(labels, features, adj, dh):
     model.eval()
     output = model(features, adj, dh)
@@ -304,6 +251,7 @@ for wid in range(num_graphs, num_graphs + come_num):
             vmatrix = vmatrix + node_matrix
             new_e = new_e + edge_matrix
 
+            db = Database("mysql")
             knobs = db.fetch_knob()
 
             new_e = add_across_plan_relations(conflict_operators, knobs, new_e)
@@ -329,4 +277,4 @@ for wid in range(num_graphs, num_graphs + come_num):
                 new_e = [e for e in new_e if e[0] not in rmv_phi and e[1] not in rmv_phi]
                 for table in conflict_operators:
                     conflict_operators[table] = [v for v in conflict_operators[table] if v[0] not in rmv_phi]
-
+'''

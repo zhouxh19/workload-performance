@@ -34,7 +34,6 @@ def generate_graph(wid, path=DATAPATH, mp_optype=None):
             vmatrix = vmatrix + node_matrix
             ematrix = ematrix + edge_matrix
 
-        # ZXN TEMP Modified BEGIN
         # Step 2: read related knobs
         db = Database("mysql")
         knobs = db.fetch_knob()
