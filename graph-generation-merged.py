@@ -59,7 +59,7 @@ argus["postgresql"]["host"]
 
 
 # obtain and normalize configuration knobs
-
+'''
 class DictParser(configparser.ConfigParser):
     def read_dict(self):
         d = dict(self._sections)
@@ -312,18 +312,14 @@ def add_across_plan_relations(conflict_operators, knobs, ematrix):
                 if time_overlap:
                     data_matrix.append([node_i[0], node_j[0], -data_weight * time_overlap])
                     data_matrix.append([node_j[0], node_i[0], -data_weight * time_overlap])
-                '''
-                if overlap(i, j) and ("rw" or "ww"):
-                    ematrix = ematrix + [[conflict_operators[table][i], conflict_operators[table][j], data_weight * time_overlap]]
-                    ematrix = ematrix + [[conflict_operators[table][j], conflict_operators[table][i], data_weight * time_overlap]]
-                '''
 
     # print(data_matrix[:-1])
 
     return data_matrix
-
+'''
 import merge
 
+'''
 def generate_graph(wid, path = data_path):
     global oid
     # fuction
@@ -364,11 +360,54 @@ def generate_graph(wid, path = data_path):
     # ZXN TEMP Modified ENDED
     return vmatrix, ematrix, mergematrix
 
+'''
+from nodeutils import *
+from dbconnnection import *
+def generate_graph(wid, path=data_path, mp_optype=None, oid = -1, min_timestamp = -1):
+    if mp_optype is None:
+        mp_optype = {'Aggregate': 0, 'Nested Loop': 1, 'Index Scan': 2, 'Hash Join': 3, 'Seq Scan': 4, 'Hash': 5,
+                     'Update': 6}
+    assert oid != -1
+    # assert min_timestamp != -1
+    # global oid, min_timestamp
+    # fuction
+    # return
+    # todo: timestamp
+
+    vmatrix = []
+    ematrix = []
+    mergematrix = []
+    conflict_operators = {}
+
+    oid = 0
+    min_timestamp = -1
+    with open(path + "sample-plan-" + str(wid) + ".txt", "r") as f:
+        # vertex: operators
+        # edge: child-parent relations
+        for sample in f.readlines():
+            sample = json.loads(sample)
+
+            # Step 1: read (operators, parent-child edges) in separate plans
+            start_time, node_matrix, edge_matrix, conflict_operators, node_merge_matrix, mp_optype, oid, min_timestamp  = \
+                extract_plan(sample, conflict_operators, mp_optype, oid, min_timestamp) # warning : may cause probs.
+            mergematrix = mergematrix + node_merge_matrix
+            vmatrix = vmatrix + node_matrix
+            ematrix = ematrix + edge_matrix
+
+        # ZXN TEMP Modified BEGIN
+        # Step 2: read related knobs
+        db = Database("mysql")
+        knobs = db.fetch_knob()
+
+        # Step 3: add relations across queries
+        ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
+
+        # edge: data relations based on (access tables, related knob values)
+        # vmatrix, ematrix = merge.mergegraph_main(mergematrix, ematrix, vmatrix)
+    ### ZXN TEMP Modified ENDED
+    return vmatrix, ematrix, mergematrix, mp_optype, oid, min_timestamp
 
 
-
-
-# '''
 # Split the workloads into multiple concurrent queries at different time ("sample-plan-x")
 
 workloads = glob.glob("./pmodel_data/job/sample-plan-*")
@@ -378,7 +417,8 @@ start_time = time.time()
 # convert into (vmatrix, ematrix)
 for wid in range(num_graphs):
     st = time.time()
-    vmatrix, ematrix, mergematrix = generate_graph(wid)
+    vmatrix, ematrix, mergematrix, mp_optype, oid, min_timestamp = generate_graph(wid, path=data_path, mp_optype=mp_optype, oid=oid, min_timestamp=-1)
+    print(vmatrix, ematrix, mergematrix)
     ''' 
     Note: ematrix (after merge) is an array of edge matrices. 
     In each edge matrix, there are at most one edge between two vertices. 
