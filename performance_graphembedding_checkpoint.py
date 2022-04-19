@@ -17,7 +17,7 @@ import numpy as np
 
 import time
 import glob
-from constants import NODE_DIM
+from constants import NODE_DIM, args
 
 # # 1. Generate Workload Dataset
 
@@ -141,21 +141,14 @@ print("[Generated Graph]", num_graphs)
 from graphembedding import *
 
 import torch.nn.functional as F
-
-
-
 # adj, features, labels, idx_train, idx_val, idx_test =
 # load_data(path = r"C:\Users\Filene\Downloads\workload-performance-main\workload-performance-main\pmodel_data\job\graph\sample-plan-", dataset = "0")
 import random
 
-
-
-
 # In[10]:
 
 
-import torch.nn.functional as F
-
+'''
 x = np.asarray([[1, 2], [3, 4]])
 X = torch.Tensor(x)
 print(X.shape)
@@ -163,33 +156,19 @@ pad_dims = (1, 3)
 X = F.pad(X, pad_dims, "constant")
 print(X)
 print(X.shape[0])
-
+'''
 
 # ## GCN Model
 
 # In[11]:
 
 
-class arguments():
-    def __init__(self):
-        self.cuda = True
-        self.fastmode = False
-        self.seed = 42
-        self.epochs = 200
-        self.lr = 0.01
-        self.weight_decay = 5e-4
-        self.hidden = 16
-        self.dropout = 0.5
-
-
-args = arguments()
-
 # In[12]:
 
 
-from pathlib import Path
+# from pathlib import Path
 
-print(Path().resolve())
+# print(Path().resolve())
 
 # In[13]:
 
@@ -199,81 +178,18 @@ import torch
 from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
 
-
-class GraphConvolution(Module):
-    """
-    Simple GCN layer, similar to https://arxiv.org/abs/1609.02907
-    """
-
-    def __init__(self, in_features, out_features, bias=True):
-        super(GraphConvolution, self).__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.weight = Parameter(torch.FloatTensor(in_features, out_features))
-        if bias:
-            self.bias = Parameter(torch.FloatTensor(out_features))
-        else:
-            self.register_parameter('bias', None)
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.weight.size(1))
-        self.weight.data.uniform_(-stdv, stdv)
-        if self.bias is not None:
-            self.bias.data.uniform_(-stdv, stdv)
-
-    def forward(self, input, adj):
-        support = torch.mm(input, self.weight)
-        output = torch.spmm(adj, support)
-        if self.bias is not None:
-            return output + self.bias
-        else:
-            return output
-
-    def __repr__(self):
-        return self.__class__.__name__ + ' (' + str(self.in_features) + ' -> ' + str(self.out_features) + ')'
-
-
-# In[14]:
-
-
-import torch.nn as nn
-
-class GCN(nn.Module):
-    def __init__(self, nfeat, nhid, nclass, dropout):
-        super(GCN, self).__init__()
-
-        self.gc1 = GraphConvolution(nfeat, nhid)
-        self.gc2 = GraphConvolution(nhid, nclass)
-        self.fc = nn.Linear(nclass, 1)
-        self.dropout = dropout
-
-    def forward(self, x, adj, dh=None, embed=False):
-        x = F.relu(self.gc1(x, adj))
-        x = F.dropout(x, self.dropout, training=self.training)
-        x = F.relu(self.gc2(x, adj))
-        if embed:
-            return x
-        if dh is not None:
-            x = x + dh
-        x = self.fc(x)
-
-        #        return F.log_softmax(x, dim=1)
-        return x
-
+from GCN import *
 
 # In[15]:
 
 
 import time
-import argparse
 import numpy as np
 
-import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-
+'''
 def train(epoch, labels, features, adj, idx_train):
     t = time.time()
     model.train()
@@ -304,7 +220,7 @@ def train(epoch, labels, features, adj, idx_train):
           'time: {:.4f}s'.format(time.time() - t))
 
     return round(loss_train.item(), 4)
-
+'''
 
 def test(labels, idx_test):
     model.eval()
@@ -317,70 +233,29 @@ def test(labels, idx_test):
           "loss= {:.4f}".format(loss_test.item()))
 
 
-# Step-3:
-feature_num = 3
-num_graphs = 10
-# graphs = glob.glob("./pmodel_data/job/sample-plan-*")
-# num_graphs = len(graphs)
-iteration_num = int(round(0.8 * num_graphs, 0))
-print("[training samples]:{}".format(iteration_num))
+from train import run_train_no_upd, train
 
-model = GCN(nfeat=feature_num,
-            nhid=args.hidden,
-            nclass=NODE_DIM,
-            dropout=args.dropout)
 
-optimizer = optim.Adam(model.parameters(),
-                       lr=args.lr, weight_decay=args.weight_decay)
+run_train_no_upd(demo = True)
+# run_train_no_upd(demo = False)
 
-for wid in range(iteration_num):
-    print("[graph {}]".format(wid))
-    # Load data
-    adj, features, labels, idx_train, idx_val, idx_test = load_data(path=data_path + "graph/",
-                                                                    dataset="sample-plan-" + str(wid))
-    # print(adj.shape)
-
-    # Model Training
-    ok_times = 0
-    t_total = time.time()
-    for epoch in range(args.epochs):
-        # print(features.shape, adj.shape)
-        loss_train = train(epoch, labels, features, adj, idx_train)
-        if loss_train < 0.002:
-            ok_times += 1
-        if ok_times >= 20:
-            break
-
-    print("Optimization Finished!")
-    print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
-
-    # Model Validation
-    test(labels, idx_test)
-
-for wid in range(iteration_num, num_graphs):
-    # Load data
-    adj, features, labels, idx_train, idx_val, idx_test = load_data(path=data_path + "graph/",
-                                                                    dataset="sample-plan-" + str(wid))
-
-    # Model Testing
-    t_total = time.time()
-    test(labels, idx_test)
-    print("Testing Finished!")
-    print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
 
 # In[16]:
 
-# assume graph_num >> come_num
-graph_num = 4
+# assume num_graphs >> come_num
+num_graphs = 4
 come_num = 1
 
+graphs = glob.glob("./pmodel_data/job/sample-plan-*")
+num_graphs = len(graphs)
+
 # train model on a big graph composed of graph_num samples
-min_timestamp = -1
 vmatrix = []
 ematrix = []
+feature_num = 3
 conflict_operators = {}
 
-for wid in range(graph_num):
+for wid in range(num_graphs):
 
     with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:
 
@@ -398,13 +273,8 @@ knobs = db.fetch_knob()
 ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
 
 # TODO more features, more complicated model
-model = GCN(nfeat=feature_num,
-            nhid=args.hidden,
-            nclass=NODE_DIM,
-            dropout=args.dropout)
-
-optimizer = optim.Adam(model.parameters(),
-                       lr=args.lr, weight_decay=args.weight_decay)
+model = get_model(feature_num=feature_num, hidden=args.hidden,nclass=NODE_DIM,dropout=args.dropout)
+optimizer = get_optimizer(model=model,lr=args.lr,weight_decay=args.weight_decay)
 
 adj, features, labels, idx_train, idx_val, idx_test = load_data_from_matrix(np.array(vmatrix, dtype=np.float32),
                                                                             np.array(ematrix, dtype=np.float32))
@@ -433,11 +303,10 @@ def predict(labels, features, adj, dh):
 import bisect
 
 # new queries( come_num samples ) come
-k = 20
 new_e = []
 conflict_operators = {}
 phi = []
-for wid in range(graph_num, graph_num + come_num):
+for wid in range(num_graphs, num_graphs + come_num):
 
     with open(data_path + "sample-plan-" + str(wid) + ".txt", "r") as f:
 
@@ -471,14 +340,11 @@ for wid in range(graph_num, graph_num + come_num):
 
             # updategraph-remove
             num = bisect.bisect(phi, [start_time, -1])
-            if num > k:
+            if num > 20: # ZXN: k = 20, num > k.
                 rmv_phi = [e[1] for e in phi[:num]]
                 phi = phi[num:]
                 vmatrix = [v for v in vmatrix if v[0] not in rmv_phi]
                 new_e = [e for e in new_e if e[0] not in rmv_phi and e[1] not in rmv_phi]
                 for table in conflict_operators:
                     conflict_operators[table] = [v for v in conflict_operators[table] if v[0] not in rmv_phi]
-
-# In[ ]:
-
 
