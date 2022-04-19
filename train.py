@@ -148,9 +148,9 @@ def run_train_upd(demo=True, come_num=0):
                 vmatrix = vmatrix + node_matrix
                 ematrix = ematrix + edge_matrix
 
-        #db = Database("mysql")
-        #knobs = db.fetch_knob()
-        #ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
+        db = Database("mysql")
+        knobs = db.fetch_knob()
+        ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
 
     # TODO more features, more complicated model
     model = get_model(feature_num=feature_num, hidden=args.hidden, nclass=NODE_DIM, dropout=args.dropout)
