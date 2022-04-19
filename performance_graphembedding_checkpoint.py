@@ -159,25 +159,6 @@ print(X.shape[0])
 '''
 
 # ## GCN Model
-
-# In[11]:
-
-
-# In[12]:
-
-
-# from pathlib import Path
-
-# print(Path().resolve())
-
-# In[13]:
-
-
-import math
-import torch
-from torch.nn.parameter import Parameter
-from torch.nn.modules.module import Module
-
 from GCN import *
 
 # In[15]:
@@ -233,11 +214,12 @@ def test(labels, idx_test):
           "loss= {:.4f}".format(loss_test.item()))
 
 
-from train import run_train_no_upd, train
-
-
-run_train_no_upd(demo = True)
-# run_train_no_upd(demo = False)
+from train import run_train_no_upd, train, run_test_no_upd
+no_upd = False
+if no_upd:
+    iteration_num, num_graphs, model = run_train_no_upd(demo=True)
+    run_test_no_upd(iteration_num, num_graphs, model)
+# iteration_num, num_graphs, model = run_train_no_upd(demo=False)
 
 
 # In[16]:
@@ -247,7 +229,7 @@ num_graphs = 4
 come_num = 1
 
 graphs = glob.glob("./pmodel_data/job/sample-plan-*")
-num_graphs = len(graphs)
+# num_graphs = len(graphs)
 
 # train model on a big graph composed of graph_num samples
 vmatrix = []
@@ -268,9 +250,9 @@ for wid in range(num_graphs):
             vmatrix = vmatrix + node_matrix
             ematrix = ematrix + edge_matrix
 
-db = Database("mysql")
-knobs = db.fetch_knob()
-ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
+            db = Database("mysql")
+            knobs = db.fetch_knob()
+            ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
 
 # TODO more features, more complicated model
 model = get_model(feature_num=feature_num, hidden=args.hidden,nclass=NODE_DIM,dropout=args.dropout)
@@ -282,7 +264,7 @@ adj, features, labels, idx_train, idx_val, idx_test = load_data_from_matrix(np.a
 ok_times = 0
 for epoch in range(args.epochs):
     # print(features.shape, adj.shape)
-    loss_train = train(epoch, labels, features, adj, idx_train)
+    loss_train = train(epoch, labels, features, adj, idx_train, idx_val, model=model, optimizer=optimizer)
     if loss_train < 0.002:
         ok_times += 1
     if ok_times >= 20:

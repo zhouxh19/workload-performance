@@ -39,6 +39,7 @@ def train(epoch, labels, features, adj, idx_train, idx_val, model, optimizer):
 
     return round(loss_train.item(), 4)
 
+
 def test(labels, idx_test, features, adj, model):
     model.eval()
     output = model(features, adj)
@@ -49,10 +50,11 @@ def test(labels, idx_test, features, adj, model):
     print("Test set results:",
           "loss= {:.4f}".format(loss_test.item()))
 
-def run_train_no_upd(demo = False):
+
+def run_train_no_upd(demo=False):
     # Step-3:
     feature_num = 3
-    num_graphs = -1;
+    num_graphs = -1
     if demo:
         num_graphs = 10
     else:
@@ -61,12 +63,11 @@ def run_train_no_upd(demo = False):
     iteration_num = int(round(0.8 * num_graphs, 0))
     print("[training samples]:{}".format(iteration_num))
 
-
     for wid in range(iteration_num):
         print("[graph {}]".format(wid))
 
-        model = get_model(feature_num=feature_num, hidden=args.hidden,nclass=NODE_DIM,dropout=args.dropout)
-        optimizer = get_optimizer(model=model,lr=args.lr,weight_decay=args.weight_decay)
+        model = get_model(feature_num=feature_num, hidden=args.hidden, nclass=NODE_DIM, dropout=args.dropout)
+        optimizer = get_optimizer(model=model, lr=args.lr, weight_decay=args.weight_decay)
         # Load data
         adj, features, labels, idx_train, idx_val, idx_test = load_data(path=DATAPATH + "/graph/",
                                                                         dataset="sample-plan-" + str(wid))
@@ -86,12 +87,16 @@ def run_train_no_upd(demo = False):
         print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
         # model validate.
         test(labels, idx_test, features=features, adj=adj, model=model)
+    return iteration_num, num_graphs, model
+
+
+def run_test_no_upd(iteration_num, num_graphs, model):
     for wid in range(iteration_num, num_graphs):
         # Load data
         adj, features, labels, idx_train, idx_val, idx_test = load_data(path=DATAPATH + "/graph/",
                                                                         dataset="sample-plan-" + str(wid))
         # Model Testing
         t_total = time.time()
-        test(labels, idx_test,  features=features, adj=adj, model=model)
+        test(labels, idx_test, features=features, adj=adj, model=model)
         print("Testing Finished!")
         print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
