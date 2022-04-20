@@ -144,7 +144,7 @@ def run_train_upd(demo=True, come_num=0):
 
                 start_time, node_matrix, edge_matrix, conflict_operators, _, mp_optype, oid, min_timestamp = \
                     extract_plan(sample, conflict_operators, mp_optype, oid, min_timestamp)
-
+                # print( "OID:" + str(oid))
                 vmatrix = vmatrix + node_matrix
                 ematrix = ematrix + edge_matrix
 
@@ -166,7 +166,8 @@ def run_train_upd(demo=True, come_num=0):
             ok_times += 1
         if ok_times >= 20:
             break
-    test(labels, idx_test, features, adj, model)
+    test(labels, idx_test, features, adj, model) # TODO: change name to validate.
+
     return num_graphs, come_num, model, adj, vmatrix, ematrix, mp_optype, oid, min_timestamp
 
 def run_test_upd(num_graphs, come_num, model, adj, vmatrix, ematrix, mp_optype, oid, min_timestamp):
@@ -183,12 +184,15 @@ def run_test_upd(num_graphs, come_num, model, adj, vmatrix, ematrix, mp_optype, 
 #    oid = 0
 #    min_timestamp = -1
 
+#    oid = 0
+
     # new queries( come_num samples ) come
-    new_e = []
+    # modify: new_e = []
+    # change new_e -> ematrix
     conflict_operators = {}
     phi = []
     for wid in range(num_graphs, num_graphs + come_num):
-
+        print(oid, min_timestamp)
         with open(DATAPATH+"/sample-plan-" + str(wid) + ".txt", "r") as f:
 
             # new query come
@@ -201,16 +205,16 @@ def run_test_upd(num_graphs, come_num, model, adj, vmatrix, ematrix, mp_optype, 
                     extract_plan(sample, conflict_operators, mp_optype, oid, min_timestamp)
 
                 vmatrix = vmatrix + node_matrix
-                new_e = new_e + edge_matrix
+                ematrix = ematrix + edge_matrix
 
                 db = Database("mysql")
                 knobs = db.fetch_knob()
 
-                new_e = add_across_plan_relations(conflict_operators, knobs, new_e)
+                ematrix = add_across_plan_relations(conflict_operators, knobs, ematrix)
 
                 # incremental prediction
                 dadj, dfeatures, dlabels, _, _, _ = load_data_from_matrix(np.array(vmatrix, dtype=np.float32),
-                                                                          np.array(new_e, dtype=np.float32))
+                                                                          np.array(ematrix, dtype=np.float32))
 
                 model.eval()
                 dh = model(dfeatures, dadj, None, True)
