@@ -17,7 +17,7 @@ pip install -r requirements.txt
 
 1. Run ``main.py''
 
-**Note**: Turn on the hyperparameter (no_upd=True) if you want to test graph update.
+**Note**: Turn on the hyperparameter (no_upd=True) if you want to test the graph-update performance.
 
 2. Compact large graphs using ``graph-generation-merged.py''
 
